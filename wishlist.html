@@ -1,0 +1,67 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wishlist | BHAKSHI</title><meta name="description" content="Your saved BHAKSHI pieces — shirts, tees, kurtas and more, kept for later.">
+  <meta name="theme-color" content="#15120f">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/features.css">
+  <link rel="icon" href="images/favicon.svg">
+</head>
+<body data-page="wishlist">
+  <main id="main">
+    <section class="wl-head">
+      <div class="container wl-head-inner">
+        <div>
+          <p class="eyebrow">Saved for later</p>
+          <h1 class="display-l wl-title">Your <em>Wishlist</em></h1>
+          <p class="wl-count" id="wl-count" aria-live="polite">&nbsp;</p>
+        </div>
+        <a class="btn btn-wa btn-sm wl-share" id="wl-share" href="#" target="_blank" rel="noopener" hidden>
+          <svg viewBox="0 0 32 32" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.6a10.6 10.6 0 0 1-5.4-1.5l-.4-.2-3.9 1 1-3.8-.2-.4A10.6 10.6 0 1 1 16 26.6zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7 0a8.7 8.7 0 0 1-4.3-3.8c-.3-.6.3-.5 1-1.7.1-.2 0-.4 0-.5l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.7 3.7 0 0 0-1.1 2.7 6.4 6.4 0 0 0 1.3 3.4 14.7 14.7 0 0 0 5.6 5c2.1.9 2.9 1 4 .8a3.4 3.4 0 0 0 2.2-1.6 2.8 2.8 0 0 0 .2-1.6c-.1-.1-.3-.2-.6-.4z"/></svg>
+          <span>Share on WhatsApp</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="wl-body" id="wl-full" hidden>
+      <div class="container">
+        <p class="wl-hint">Pick a size on any card to add it to your bag, or open <b>Quick view</b> for colours and fit help.</p>
+        <div class="grid-products wl-grid" id="wl-grid"></div>
+      </div>
+    </section>
+
+    <section class="wl-empty" id="wl-empty" hidden>
+      <div class="container wl-empty-inner">
+        <svg class="wl-empty-art" viewBox="11 0 240 210" aria-hidden="true">
+          <defs>
+            <pattern id="wl-dots" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="7" cy="7" r="1.3" fill="#d9772b" opacity=".35"/></pattern>
+          </defs>
+          <circle cx="131" cy="104" r="86" fill="url(#wl-dots)"/>
+          <circle cx="131" cy="104" r="62" fill="#f3ece1"/>
+          <g fill="none" stroke="#15120f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M120 44c0-7 5-12 11-12s11 5 11 11c0 9-11 10-11 19v6"/>
+            <path d="M131 68L62 112c-6 4-3 12 4 12h130c7 0 10-8 4-12l-69-44"/>
+          </g>
+          <g class="wl-empty-heart">
+            <path d="M131 124v18" stroke="#15120f" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M131 184s-20-12-24-24c-3-9 3-17 11-17 5 0 9 3 13 7 4-4 8-7 13-7 8 0 14 8 11 17-4 12-24 24-24 24z" fill="#d9772b"/>
+          </g>
+        </svg>
+        <h2 class="display-m">Nothing saved <em>yet</em></h2>
+        <p class="wl-empty-text">Tap the heart on anything you love and it will wait for you here — no account needed.</p>
+        <div class="wl-empty-ctas">
+          <a class="btn btn-accent btn-lg" href="shop.html" data-magnetic>Explore the collection</a>
+          <a class="btn btn-ghost btn-lg" href="shop.html?tag=new">New arrivals</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section wl-more" id="wl-more" hidden></section>
+  </main>
+  <script src="js/products.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/features.js"></script>
+</body></html>
