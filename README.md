@@ -1,4 +1,4 @@
-# BHAKSHI — Streetwear Drop Store
+# BHAKSHI — Collared Classics, Made in India
 
 A complete online store that costs **₹0/month** to run.
 Customers browse, add to bag, and check out. The order arrives in **your WhatsApp**, and they pay by **UPI** or **Cash on Delivery**.
@@ -20,20 +20,21 @@ instagram: "https://instagram.com/yourhandle",
 
 ## 2. Your drop, your products
 
-The store is set up for **Drop 01: 5 oversized graphic tees**. Each product looks like this:
+The store is set up for **Drop 01: The Club Edit**, with 6 collared polos and rugby shirts. Each product looks like this:
 
 ```js
-{ id: "core-tee-black", family: "core-tee", colorName: "Jet Black", fit: "Oversized", fabric: "100% Cotton, 240 GSM, bio-washed",
-  name: "Core Tee", category: "tshirts", price: 899, mrp: 899,
-  color: "#141414", shape: "tee", print: { front: "logo", back: "core" },
-  sizes: ["S","M","L","XL","XXL"], tags: ["new","bestseller"], stock: 48, edition: 60, images: [], desc: "..." },
+{ id: "varsity-script-polo-green", techniques: ["Puff print", "Contrast collar"], family: "varsity-script-polo",
+  colorName: "Bottle Green", fit: "Relaxed", fabric: "Cotton piqué, 240 GSM",
+  name: "Varsity Script Polo", category: "tshirts", price: 1299, mrp: 1299, color: "#1f4a33", shape: "polo",
+  style: { body: "#1f4a33", collar: "#f1ece0", sleeve: "short", ... },
+  sizes: ["S","M","L","XL","XXL"], tags: ["new","bestseller"], stock: 46, edition: 60, images: [], desc: "..." },
 ```
 
-- **Real photos:** put them in the `images/` folder and list them as front, then back, e.g.
-  `images: ["images/core-front.jpg", "images/core-back.jpg"]`. Until you add photos, the site draws the tee
-  with its print. Use portrait photos (4:5, e.g. 1200×1500), JPG/WebP under ~300 KB each.
-- **Limited stock:** `stock` is units left and `edition` is units made, so the site shows "12 / 40 LEFT".
-  Set `stock: 0` for Sold Out.
+- **Real photos (the most important upgrade):** put them in the `images/` folder and list them as front, then back, e.g.
+  `images: ["images/varsity-front.jpg", "images/varsity-back.jpg"]`. Until then, the site shows drawn product
+  images built from the `style` colours. Use portrait photos (4:5 or 5:7, e.g. 1200×1680), JPG/WebP under ~300 KB each.
+  Only use photos you took yourself or have permission to use. Don't use screenshots of other brands or creators.
+- **Limited stock:** `stock` is units left and `edition` is units made. `stock: 0` shows "Sold out".
 - **Price:** if `mrp` equals `price`, no discount is shown. Set `mrp` higher to show a struck-out price.
 - **Discount codes:** `coupons: { BHAKSHI10: 10 }` means 10% off.
 

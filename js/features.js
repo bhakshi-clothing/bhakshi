@@ -197,7 +197,8 @@
                 ? `<button type="button" class="qv-size" disabled aria-disabled="true" title="Sold out">${E(sz)}</button>`
                 : `<button type="button" class="qv-size${st.size === sz ? " active" : ""}" role="radio" aria-checked="${st.size === sz}" data-qv-size="${E(sz)}">${E(sz)}</button>`).join("")}
             </div>
-            ${/oversize/i.test(p.fit || "") ? `<p class="qv-fitnote">Oversized fit. Take your usual size for the intended drape, or one down for a regular fit.</p>` : ""}
+            ${/oversize/i.test(p.fit || "") ? `<p class="qv-fitnote">Oversized fit. Take your usual size for the intended drape, or one down for a regular fit.</p>`
+              : /relax/i.test(p.fit || "") ? `<p class="qv-fitnote">Relaxed fit — easy through the chest, sleeves at mid-bicep. Take your usual size, or one down for a closer, regular polo fit.</p>` : ""}
             <p class="qv-msg" role="alert"></p>
           </div>
 
@@ -373,15 +374,17 @@
        BMI   = kg / m²
        chest = 19.5 + 0.86·BMI + 0.045·(cm − 170)   (inches)
        True top size by chest: <38 S · 38–40 M · 40–42 L · 42–44 XL · ≥44 XXL
-     Preference scale (how much room you like): slim < regular < relaxed < oversized.
-       Oversized-cut garment (Drop 01 tees — the room is already in the pattern):
+     Three garment cuts ("cut" = how much room is already in the pattern):
+       Relaxed cut (Drop 01 polos & rugbys — p.fit "Relaxed" on a top):
+         relaxed → true size (as designed) · regular → one size down · roomy → one size up.
+       Oversized cut (tees — p.fit "Oversized"):
          oversized → true size · relaxed → true size, or one down when you sit in the
          lower half of the band · regular/slim → one size down.
-       Regular-cut garment (future shirts etc.): chest shifts slim −0.8" relaxed +1.2",
+       Classic cut (future shirts etc.): chest shifts slim −0.8" relaxed +1.2",
          oversized → one size up.
      Shirt collar: S 38 · M 40 · L 42 · XL 44 · XXL 46.
      Waist = 10 + 0.95·BMI + 0.06·(cm − 170) → nearest even 28–40 (only shown if the store sells bottoms).
-     Sanity (oversized, as intended): 165/55 → S · 172/70 → M · 180/85 → XL · 178/95 → XXL.
+     Sanity (as designed): 165/55 → S · 172/70 → M · 180/85 → XL · 178/95 → XXL.
      ===================================================================== */
   const FitFinder = (() => {
     const KEY = "bhakshi_fit";
@@ -390,14 +393,21 @@
     const FITS_OS = [
       { id: "oversized", name: "Oversized", sub: "As designed", note: "Boxy body, dropped shoulders" },
       { id: "relaxed", name: "Relaxed", sub: "A little less room", note: "Easy, with less drape" },
-      { id: "regular", name: "Regular", sub: "Size down", note: "Closer to a classic tee" }
+      { id: "regular", name: "Regular", sub: "Size down", note: "Closer to a classic fit" }
+    ];
+    const FITS_RELAXED = [
+      { id: "relaxed", name: "Relaxed", sub: "As designed", note: "Easy through the chest, sleeves at mid-bicep" },
+      { id: "regular", name: "Regular", sub: "Size down", note: "Closer to a classic polo" },
+      { id: "roomy", name: "Extra roomy", sub: "Size up", note: "Boxier body, a little longer" }
     ];
     const FITS_CLASSIC = [
       { id: "slim", name: "Slim", sub: "Close", note: "Close to the body" },
       { id: "regular", name: "Regular", sub: "Easy", note: "Easy through chest and waist" },
       { id: "relaxed", name: "Relaxed", sub: "Roomy", note: "A laid-back drape" }
     ];
-    const FIT_NAME = { oversized: "Oversized", relaxed: "Relaxed", regular: "Regular", slim: "Slim" };
+    const FIT_NAME = { oversized: "Oversized", relaxed: "Relaxed", regular: "Regular", slim: "Slim", roomy: "Extra roomy" };
+    /* body chest bands (inches) the size bands are built on — shown as polo chest guidance */
+    const CHEST_BANDS = { S: "36–38", M: "38–40", L: "40–42", XL: "42–44", XXL: "44–46" };
     let st = null, root = null, opts = {}, kbd = false;
 
     const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
@@ -405,24 +415,35 @@
     const ftin = cm => { const inch = Math.round(cm / 2.54); return `${Math.floor(inch / 12)}′${inch % 12}″`; };
     const product = () => (opts.productId && find(opts.productId)) || null;
 
-    /* is the context an oversized cut? (the product, or the store's tops when opened without one) */
-    function isOversized(p) {
-      if (p) return /oversize/i.test(p.fit || "");
-      const tops = PRODUCTS.filter(x => !["pants", "shorts"].includes(x.shape));
-      return tops.length > 0 && tops.filter(x => /oversize/i.test(x.fit || "")).length >= tops.length / 2;
+    /* the garment's cut: "relaxed" (polos/rugbys), "oversized" (tees) or "classic" —
+       from the product, or from most of the store's tops when opened without one */
+    const isBottom = x => ["pants", "shorts"].includes(x.shape);
+    const cutOfOne = x => (/oversize/i.test(x.fit || "") ? "oversized" : /relax/i.test(x.fit || "") && !isBottom(x) ? "relaxed" : "classic");
+    function cutOf(p) {
+      if (p) return cutOfOne(p);
+      const tops = PRODUCTS.filter(x => !isBottom(x));
+      if (!tops.length) return "classic";
+      const n = c => tops.filter(x => cutOfOne(x) === c).length;
+      return n("relaxed") >= tops.length / 2 ? "relaxed" : n("oversized") >= tops.length / 2 ? "oversized" : "classic";
     }
-    const fitsFor = os => (os ? FITS_OS : FITS_CLASSIC);
-    const normFit = (fit, os) => {
-      const ids = fitsFor(os).map(f => f.id);
+    const cutName = c => (c === true ? "oversized" : c === false || !c ? "classic" : c);   // accepts the old boolean too
+    const fitsFor = cut => ({ oversized: FITS_OS, relaxed: FITS_RELAXED }[cutName(cut)] || FITS_CLASSIC);
+    const normFit = (fit, cut) => {
+      cut = cutName(cut);
+      const ids = fitsFor(cut).map(f => f.id);
       if (ids.includes(fit)) return fit;
-      return os ? (fit === "slim" ? "regular" : "oversized") : (fit === "oversized" ? "relaxed" : "regular");
+      if (cut === "oversized") return fit === "slim" ? "regular" : "oversized";
+      if (cut === "relaxed") return fit === "slim" ? "regular" : fit === "oversized" ? "roomy" : "relaxed";
+      return fit === "oversized" || fit === "roomy" ? "relaxed" : "regular";
     };
 
-    function recommend({ height, weight, fit }, os = true) {
+    function recommend({ height, weight, fit }, cut = "relaxed") {
+      cut = cutName(cut);
+      const os = cut === "oversized";
       const bmi = weight / Math.pow(height / 100, 2);
       const base = 19.5 + 0.86 * bmi + 0.045 * (height - 170);
       let chest = base;
-      if (!os) chest += ({ slim: -0.8, relaxed: 1.2 }[fit] || 0);
+      if (cut === "classic") chest += ({ slim: -0.8, relaxed: 1.2 }[fit] || 0);
       const pos = (chest - 36) / 2;                       // 0 = start of S band
       const ti = clamp(Math.floor(pos), 0, 4);
       const frac = clamp(pos - Math.floor(pos), 0, 1);
@@ -430,17 +451,22 @@
       if (os) {
         if (fit === "regular" || fit === "slim") idx = ti - 1;
         else if (fit === "relaxed") idx = frac < 0.5 ? ti - 1 : ti;
+      } else if (cut === "relaxed") {
+        if (fit === "regular" || fit === "slim") idx = ti - 1;
+        else if (fit === "roomy" || fit === "oversized") idx = ti + 1;
       } else if (fit === "oversized") idx = ti + 1;
       const floored = idx < 0;                             // wanted smaller than our smallest
+      const capped = idx > 4;                              // wanted bigger than our largest
       idx = clamp(idx, 0, 4);
       const top = TOPS[idx];
-      const intended = TOPS[ti];                           // the size this oversized cut is designed around
+      const intended = TOPS[ti];                           // the size this relaxed / oversized cut is designed around
       const down = ti > 0 ? TOPS[ti - 1] : null;           // for a regular fit
+      const up = ti < 4 ? TOPS[ti + 1] : null;             // for extra room
       const between = (pos >= 0 && pos < 4 && frac > 0.8 && ti < 4) ? TOPS[ti + 1] : null;
 
-      const wRaw = 10 + 0.95 * bmi + 0.06 * (height - 170) + ({ slim: -0.5, relaxed: 0.8, oversized: 0.8 }[fit] || 0);
+      const wRaw = 10 + 0.95 * bmi + 0.06 * (height - 170) + ({ slim: -0.5, relaxed: 0.8, oversized: 0.8, roomy: 0.8 }[fit] || 0);
       const waist = clamp(Math.round(wRaw / 2) * 2, 28, 40);
-      return { bmi, top, intended, down, between, floored, collar: COLLAR[top], waist: String(waist), os };
+      return { bmi, chest: base, top, intended, down, up, between, floored, capped, collar: COLLAR[top], waist: String(waist), os, cut };
     }
 
     /* which size system a product uses */
@@ -464,17 +490,19 @@
       return { sys, want, size: best, exact: false };
     }
 
-    /* ---------- line drawing: a flat tee silhouette per fit (1px outline, no fill) ---------- */
-    const TEE = {               // shoulder half-width, shoulder drop, sleeve out/down, hem half-width, hem y
+    /* ---------- line drawing: a flat polo silhouette per fit (1px outline, no fill) ---------- */
+    const BODY = {              // shoulder half-width, shoulder drop, sleeve out/down, hem half-width, hem y
       slim: [15, 1, 8, 20, 15, 128], regular: [17, 2, 9, 24, 17, 132],
-      relaxed: [21, 6, 10, 28, 21, 140], oversized: [27, 13, 9, 30, 27, 152]
+      relaxed: [21, 6, 10, 28, 21, 140], roomy: [25, 10, 10, 29, 25, 148], oversized: [27, 13, 9, 30, 27, 152]
     };
-    function teePath(fit) {
-      const [S, D, sx, sy, H, L] = TEE[fit] || TEE.regular, c = 70, y = 60 + D;
+    function bodyPath(fit) {
+      const [S, D, sx, sy, H, L] = BODY[fit] || BODY.regular, c = 70, y = 60 + D;
       const r = (a, b) => `${(c + a).toFixed(1)} ${b.toFixed(1)}`, l = (a, b) => `${(c - a).toFixed(1)} ${b.toFixed(1)}`;
       return `M${l(8, 57)} Q${c} 66 ${r(8, 57)} L${r(S, y)} L${r(S + sx, y + sy)} L${r(S + sx - 11, y + sy + 4)} L${r(H, y + 22)} L${r(H, L)} L${l(H, L)} L${l(H, y + 22)} L${l(S + sx - 11, y + sy + 4)} L${l(S + sx, y + sy)} L${l(S, y)} Z`;
     }
-    const fitArt = fit => `<svg class="ff-fit-art" viewBox="22 50 96 108" aria-hidden="true"><path d="${teePath(fit)}"/></svg>`;
+    /* collar points + a short button placket (same for every fit) */
+    const COLLAR_PATH = "M62 57 L59.5 66 L69 71 M78 57 L80.5 66 L71 71 M67.5 69 V84 H72.5 V69";
+    const fitArt = fit => `<svg class="ff-fit-art" viewBox="22 50 96 108" aria-hidden="true"><path d="${bodyPath(fit)}"/><path d="${COLLAR_PATH}"/><circle cx="70" cy="74.5" r=".9"/><circle cx="70" cy="80" r=".9"/></svg>`;
 
     /* ---------- screens ---------- */
     function head() {
@@ -511,9 +539,9 @@
     }
 
     function screen() {
-      const s = st.step, os = st.os;
+      const s = st.step, cut = st.cut;
       if (s === "saved") {
-        const r = recommend(st.saved, os);
+        const r = recommend(st.saved, cut);
         const p = product();
         const fp = p && forProduct(p, r);
         return `<section class="ff-step ff-saved">
@@ -522,7 +550,7 @@
           <dl class="ff-saved-card">
             <div><dt>Height</dt><dd>${st.saved.height} cm</dd></div>
             <div><dt>Weight</dt><dd>${st.saved.weight} kg</dd></div>
-            <div><dt>Fit</dt><dd>${E(FIT_NAME[normFit(st.saved.fit, os)])}</dd></div>
+            <div><dt>Fit</dt><dd>${E(FIT_NAME[normFit(st.saved.fit, cut)])}</dd></div>
             <div class="ff-saved-size"><dt>Your size</dt><dd>${E(fp ? fp.size : r.top)}</dd></div>
           </dl>
           <div class="ff-actions">
@@ -543,9 +571,10 @@
         </section>`;
       if (s === 2) return `<section class="ff-step">
           <h2 class="ff-title">How do you like it to fit?</h2>
-          <p class="ff-sub">${os ? "Our tees are cut oversized. Choose how much room you want." : "Choose the fit you reach for most."}</p>
+          <p class="ff-sub">${cut === "relaxed" ? "Our polos are cut relaxed, with room through the chest. Choose how much room you want."
+            : cut === "oversized" ? "This piece is cut oversized. Choose how much room you want." : "Choose the fit you reach for most."}</p>
           <div class="ff-fits" role="radiogroup" aria-label="Fit preference">
-            ${fitsFor(os).map(f => `<button type="button" class="ff-fit${st.fit === f.id ? " active" : ""}" role="radio" aria-checked="${st.fit === f.id}" data-ff-fitpick="${f.id}">
+            ${fitsFor(cut).map(f => `<button type="button" class="ff-fit${st.fit === f.id ? " active" : ""}" role="radio" aria-checked="${st.fit === f.id}" data-ff-fitpick="${f.id}">
               ${fitArt(f.id)}
               <span class="ff-fit-text"><b>${E(f.name)}<span> — ${E(f.sub)}</span></b><small>${E(f.note)}</small></span>
               <span class="ff-radio" aria-hidden="true"></span></button>`).join("")}
@@ -555,7 +584,7 @@
     }
 
     function resultScreen() {
-      const os = st.os, r = recommend(st, os);
+      const cut = st.cut, os = cut === "oversized", r = recommend(st, cut);
       const p = product();
       const fp = p && forProduct(p, r);
       const size = fp ? fp.size : r.top;
@@ -566,9 +595,27 @@
       let note, alt = null, altLabel = "";
       if (!isTop) {
         note = `Based on your build, <b>${E(size)}</b> is the one${fp && !fp.exact ? ` (the closest we make to ${E(fp.want)})` : ""}.`;
+      } else if (cut === "relaxed") {
+        if (st.fit === "relaxed") {
+          note = `<b>${E(size)}</b> gives you the relaxed fit the polo is designed for — easy through the chest, sleeves at mid-bicep, collar sitting flat.`;
+          if (r.down && r.down !== size && offered(r.down)) { alt = r.down; altLabel = "Regular"; note += ` For a closer, regular fit, size down to <b>${E(r.down)}</b>.`; }
+          else if (r.floored || !r.down) note += ` It's our smallest size, so it will sit easy either way.`;
+        } else if (st.fit === "regular") {
+          note = r.floored
+            ? `<b>${E(size)}</b> is our smallest size. On you it will still sit a little relaxed.`
+            : `One size down from your usual. <b>${E(size)}</b> sits like a classic, regular-fit polo.`;
+          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Relaxed"; note += ` For the relaxed fit as designed, take <b>${E(r.intended)}</b>.`; }
+        } else {
+          note = r.capped
+            ? `<b>${E(size)}</b> is our largest size, so it will sit closer to our relaxed fit than extra roomy.`
+            : `One size up. <b>${E(size)}</b> gives you a boxier body and a little more length.`;
+          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Relaxed"; note += ` For the relaxed fit as designed, take <b>${E(r.intended)}</b>.`; }
+        }
+        if (r.between && st.fit === "relaxed" && !alt && offered(r.between)) { alt = r.between; altLabel = "Broad build"; }
+        if (r.between && st.fit === "relaxed") note += ` You're near the top of the range, so broad shoulders may prefer <b>${E(r.between)}</b>.`;
       } else if (os) {
         if (st.fit === "oversized") {
-          note = `<b>${E(size)}</b> gives you the boxy, dropped-shoulder fit the tee is designed for.`;
+          note = `<b>${E(size)}</b> gives you the boxy, dropped-shoulder fit this piece is designed for.`;
           if (r.down && r.down !== size && offered(r.down)) { alt = r.down; altLabel = "Regular"; note += ` For a regular fit, size down to <b>${E(r.down)}</b>.`; }
           else if (r.floored || !r.down) note += ` It's our smallest size, so expect a roomy fit either way.`;
         } else if (st.fit === "relaxed") {
@@ -578,7 +625,7 @@
         } else {
           note = r.floored
             ? `<b>${E(size)}</b> is our smallest size. On you it will still sit a little relaxed.`
-            : `One size down from your usual. <b>${E(size)}</b> sits like a regular tee.`;
+            : `One size down from your usual. <b>${E(size)}</b> sits like a regular fit.`;
           if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Oversized"; note += ` For the full oversized drape, take <b>${E(r.intended)}</b>.`; }
         }
         if (r.between && st.fit === "oversized" && !alt && offered(r.between)) { alt = r.between; altLabel = "Broad build"; }
@@ -604,6 +651,9 @@
           ${isTop ? `<div class="ff-scale" aria-hidden="true">${sizes.map(x => `<span class="${x === size ? "is-pick" : x === alt ? "is-alt" : ""}"><b>${E(x)}</b>${x === alt ? `<i>${E(altLabel)}</i>` : ""}</span>`).join("")}</div>` : ""}
           <p class="ff-note">${note}</p>
           ${extra.length ? `<dl class="ff-tiles">${extra.map(t => `<div><dt>${t.k}</dt><dd>${E(t.v)}</dd></div>`).join("")}</dl>` : ""}
+          ${isTop ? `<p class="ff-chest">From your build, your chest is about <b>${Math.round(r.chest)}″ (${Math.round(r.chest * 2.54)} cm)</b>. Know yours? Measure around the fullest part, under the arms, tape level. Our sizes are built on body chest:
+            ${sizes.filter(x => CHEST_BANDS[x]).map(x => `<span${x === size ? ' class="is-pick"' : ""}>${E(x)} ${CHEST_BANDS[x]}″</span>`).join(" · ")}.
+            ${cut === "relaxed" ? "The polo itself measures roomier than this — that's the relaxed cut." : ""}</p>` : ""}
         </div>
         <p class="ff-basis">${st.height} cm (${ftin(st.height)}) · ${st.weight} kg · ${E(FIT_NAME[st.fit])}
           <button type="button" class="ff-edit" data-ff-goto="0">Edit</button></p>
@@ -631,7 +681,7 @@
       const step = root.querySelector(".ff-step");
       if (dir && !reduced()) step.classList.add("ff-in");
       if (st.step === "result") {
-        const r = recommend(st, st.os);
+        const r = recommend(st, st.cut);
         save({ height: st.height, weight: st.weight, fit: st.fit, top: r.top, collar: r.collar, waist: r.waist, ts: Date.now() });
       }
       // keep focus inside the dialog: move it to the new control for keyboard users, else to the quiz itself
@@ -670,7 +720,7 @@
       if (t.dataset.ffGoto) return go(+t.dataset.ffGoto, -1);
       if (t.hasAttribute("data-ff-restart")) return go(0, 1);
       if (t.hasAttribute("data-ff-use")) {
-        Object.assign(st, { height: st.saved.height, weight: st.saved.weight, fit: normFit(st.saved.fit, st.os) });
+        Object.assign(st, { height: st.saved.height, weight: st.saved.weight, fit: normFit(st.saved.fit, st.cut) });
         return go("result", 1);
       }
       if (t.dataset.ffPick) {
@@ -687,14 +737,15 @@
       if (!hasModal()) return null;
       opts = o || {};
       const p = product();
-      const os = isOversized(p);
+      const cut = cutOf(p);
       const saved = load();
       const valid = saved && saved.height && saved.weight && saved.fit;
       st = {
-        os,
+        cut,
+        os: cut === "oversized",
         height: valid ? clamp(+saved.height, 150, 200) : 172,
         weight: valid ? clamp(+saved.weight, 45, 120) : 70,
-        fit: normFit(valid ? saved.fit : (os ? "oversized" : "regular"), os),
+        fit: normFit(valid ? saved.fit : ({ oversized: "oversized", relaxed: "relaxed" }[cut] || "regular"), cut),
         saved: valid ? saved : null,
         step: valid ? "saved" : 0
       };

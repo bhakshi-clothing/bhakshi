@@ -132,7 +132,7 @@
         <section class="ck-empty">
           <span class="ck-empty-icon">${I.bag}</span>
           <h1 class="ck-empty-title">Your bag is empty</h1>
-          <p class="ck-empty-text">There's nothing to check out yet. Every Drop ${esc(dropNo)} design is made in a small run.</p>
+          <p class="ck-empty-text">There's nothing to check out yet. Every Drop ${esc(dropNo)} style is made in a small run, so pick yours while it's here.</p>
           <a class="btn" href="shop.html">Continue shopping</a>
         </section>
         ${picks.length ? `<section class="ck-empty-picks">
@@ -749,6 +749,7 @@
                 <li><b>Confirm on WhatsApp</b><span>Send the prefilled message. We reply to confirm your order and sizes.</span></li>
                 <li><b>Packed in 1–2 days</b><span>Checked, folded and packed — we share the tracking link on WhatsApp.</span></li>
                 <li><b>Delivered in 3–7 days</b><span>Depending on your pincode. Wrong size? Exchange within 7 days, subject to stock.</span></li>
+                <li><b>Look after it</b><span>Wash cold, dry knits flat in the shade and reshape the collar while damp. <a href="policies.html#care">Read the care guide</a>.</span></li>
               </ol>
             </div>
 

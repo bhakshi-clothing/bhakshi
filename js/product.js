@@ -1,13 +1,17 @@
-/* BHAKSHI — product detail page (v3, minimal craft streetwear).
+/* BHAKSHI — product detail page (v3.1, "The Club Edit": collared polos & rugbys).
    Renders from ?id=… . Desktop: every view stacked full-width on the left, a sticky info column on
    the right. Mobile: a swipeable gallery with thin progress dots, then the info.
+   Below the buy box: The details (square close-ups) · Style it with (outfit flat lay + tips) ·
+   Fabric & fit (icon row, measured line drawing, size chart) · Complete the club · Recently viewed.
+   Every caption is generated from the product data (style.collar / placket / knit / graphic …).
    Colour swatches (only when a family has variants) swap the product in place. */
 (() => {
   "use strict";
   if (document.body.dataset.page !== "product") return;
 
   const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const TOPS = ["tee", "polo", "shirt", "kurta", "hoodie", "jacket"];
+  const TOPS = ["tee", "polo", "rugby", "knitpolo", "shirt", "kurta", "hoodie", "jacket"];
+  const POLOS = ["polo", "rugby", "knitpolo"];
   const BOTTOMS = ["pants", "shorts"];
   const OCC = ["office", "casual", "athleisure", "festive"];
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -43,7 +47,9 @@
   const say = (msg, type) => { try { toast(msg, { type }); } catch (e) { /* ignore */ } };
   const DROP = STORE.drop || { number: "01", name: "" };
   const dropTag = `Drop ${DROP.number}`;
-  const prints = p => ({ front: (p.print && p.print.front) || "", back: (p.print && p.print.back) || "" });
+  const ST = p => p.style || {};
+  const cap = s => String(s || "").charAt(0).toUpperCase() + String(s || "").slice(1);
+  const isPolo = p => POLOS.includes(p.shape) || !!p.style;
   const maxQty = p => Math.max(1, Math.min(10, p.stock | 0));
 
   function fabricParts(p) {
@@ -59,25 +65,131 @@
     return d ? `${pad2(d)}d ${pad2(h)}h ${pad2(m)}m` : `${pad2(h)}h ${pad2(m)}m ${pad2(sec)}s`;
   };
 
-  /* ---------- copy ---------- */
-  const PRINTS = {
-    core: { name: "BHAKSHI Stack", front: "A small BHAKSHI mark on the chest", back: "The full BHAKSHI wordmark, stacked big across the back" },
-    monsoon: { name: "Monsoon Season", front: "A rain-streak graphic on the chest", back: "Rain streaks and a circular type lockup across the back" },
-    chai: { name: "Chai Break", front: "A line-drawn cutting-chai glass on the chest", back: "The full break schedule across the back" },
-    express: { name: "Night Express", front: "A small route mark on the chest", back: "A route map inspired by railway station boards" },
-    hornok: { name: "Horn OK Please", front: "A small truck-art mark on the chest", back: "A full-colour truck-art panel across the back" },
-    logo: { name: "Chest mark", front: "A small BHAKSHI chest mark", back: "A small BHAKSHI mark" }
-  };
+  /* ---------- copy: how each detail is made (keys = techniques[] in products.js, lower-case) ---------- */
   const CRAFT = {
-    "screen print": "Every colour gets its own mesh screen. Ink is pulled through by hand with a squeegee, one colour at a time, then heat-cured so the print stays put wash after wash.",
-    "puff print": "A special ink that rises when it is heated. Parts of the graphic stand up off the fabric with a soft, raised texture you can feel with your fingers.",
-    "hand embroidery": "Stitched by hand, thread by thread. Tiny differences in every piece are the mark of a person, not a machine.",
-    "hand painted": "Details are finished with a brush after printing, so no two pieces come out exactly alike.",
-    "embroidery": "Stitched detail that adds texture and depth to the graphic.",
-    "block print": "Carved wooden blocks are inked and pressed by hand, one impression at a time.",
-    "tie dye": "Folded, bound and dyed by hand. Every pattern is a one-off."
+    "puff print": "A special ink that rises when it is heated, so the lettering stands up off the cloth with a soft, raised feel.",
+    "embroidery": "Stitched in dense thread, so the lettering keeps a clean edge wash after wash.",
+    "contrast collar": "The collar is knitted separately in a contrast colour and sewn on, the way club polos have always been made.",
+    "felt appliqué": "Cut from felt and stitched down onto the chest, like the numbers on an old varsity jersey.",
+    "waffle knit": "A grid of tiny squares knitted into the cloth. It holds a little warmth and still breathes.",
+    "yarn-dyed stripes": "The yarn is dyed before it is knitted, so the stripes are part of the fabric and will never crack or peel like a print.",
+    "rib knit": "Fine vertical ribs that stretch with you and spring back into shape.",
+    "twill collar": "A sturdy woven twill collar that stands up crisp, like a classic rugby shirt.",
+    "screen print": "Pulled through a mesh screen one colour at a time, then heat-cured so it stays put.",
+    "hand embroidery": "Stitched by hand, thread by thread. Tiny differences in every piece are part of the charm."
   };
-  const craftText = t => CRAFT[String(t).toLowerCase()] || "Finished by hand in small batches.";
+  const craftText = t => CRAFT[String(t).toLowerCase()] || "Made in small runs in India.";
+
+  /* ---------- colour names from the drawing hexes (for generated captions) ---------- */
+  const NAMED = [["white", "#f6f4ef"], ["cream", "#efe6d3"], ["sand", "#d9c8a5"], ["mustard", "#ddb12f"], ["rose", "#d4838a"],
+    ["crimson", "#a3222b"], ["red", "#c8312b"], ["maroon", "#7a2731"], ["cocoa", "#4a2b22"], ["brown", "#7a5236"],
+    ["bottle green", "#1f4a33"], ["olive", "#6b6b3a"], ["sage", "#9caf88"], ["sky blue", "#8fb3d9"], ["navy", "#232b45"],
+    ["charcoal", "#2a2c31"], ["black", "#111111"], ["grey", "#9a9a9a"]];
+  const rgb = h => { const m = String(h || "").replace("#", ""); const x = m.length === 3 ? m.split("").map(c => c + c).join("") : m; const n = parseInt(x, 16); return isNaN(n) ? null : [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  function colourName(hex) {
+    const c = rgb(hex); if (!c) return "";
+    let best = "", d = 1e9;
+    NAMED.forEach(([n, h]) => { const k = rgb(h), e = (c[0] - k[0]) ** 2 * .3 + (c[1] - k[1]) ** 2 * .59 + (c[2] - k[2]) ** 2 * .11; if (e < d) { d = e; best = n; } });
+    return best;
+  }
+  const bodyName = p => String(p.colorName || "").split("/")[0].trim().toLowerCase() || colourName(ST(p).body || p.color);
+  const sameHex = (a, b) => String(a || "").toLowerCase() === String(b || "").toLowerCase();
+  const hasTech = (p, re) => (p.techniques || []).some(t => re.test(t));
+  const KNIT = {
+    pique: { name: "Cotton piqué", short: "piqué", line: "A breathable honeycomb knit that keeps its shape in the heat.",
+      fabric: "Piqué is a textured knit with a fine honeycomb face. It breathes on humid days, hides creases and keeps the collar crisp." },
+    waffle: { name: "Waffle knit", short: "waffle knit", line: "A deep, square texture that holds warmth without the weight.",
+      fabric: "A deep waffle texture that adds warmth without bulk, soft from the first wear. Made for cooler evenings and air-conditioned offices." },
+    rib: { name: "Rib knit", short: "rib knit", line: "Fine vertical ribs with an easy stretch that springs back.",
+      fabric: "Fine vertical ribs give a close, easy stretch that recovers after every wear. Light enough for winter afternoons, smart enough for work." },
+    jersey: { name: "Heavy jersey", short: "jersey", line: "Dense, smooth cotton that drapes like an old rugby jersey.",
+      fabric: "Heavy, dense jersey with a smooth face, built like the old rugby jerseys. It holds its shape and softens with every wash." }
+  };
+  const knitOf = p => KNIT[ST(p).knit] || (/(piqu)/i.test(p.fabric || "") ? KNIT.pique : /waffle/i.test(p.fabric || "") ? KNIT.waffle : /rib/i.test(p.fabric || "") ? KNIT.rib : KNIT.jersey);
+  const longSleeve = p => ST(p).sleeve ? ST(p).sleeve === "long" : p.shape === "rugby" || p.shape === "knitpolo";
+  const johnny = p => ST(p).placket === "johnny" || p.shape === "knitpolo";
+  function method(p) {
+    if (hasTech(p, /puff/i)) return { adj: "puff-print", phrase: "raised in soft puff print" };
+    if (hasTech(p, /appliq/i)) return { adj: "felt-appliqué", phrase: "in felt appliqué" };
+    if (hasTech(p, /embroider/i)) return { adj: "embroidered", phrase: "embroidered" };
+    return { adj: "", phrase: "on the chest" };
+  }
+  function collarInfo(p) {
+    const st = ST(p), twill = hasTech(p, /twill/i), cn = colourName(st.collar), body = bodyName(p);
+    if (johnny(p)) return { title: "Johnny collar", text: `An open, buttonless collar knitted in the same ${knitOf(p).short} as the body.`, chip: "Johnny collar", sub: "Open, no buttons" };
+    if (st.collar && !sameHex(st.collar, st.body)) {
+      const tip = (st.tipping || []).some(t => sameHex(t, st.collar));
+      return { title: twill ? "Twill collar" : "Contrast collar", text: `${cap(cn)} ${twill ? "woven twill" : "flat-knit"} collar against ${body}${tip ? ", with matching sleeve tipping" : ""}.`,
+        chip: twill ? "Twill collar" : "Contrast collar", sub: `${cap(cn)} on ${body}` };
+    }
+    return { title: "Knitted collar", text: `A soft self-colour collar in ${knitOf(p).short}, easy to wear buttoned or open.`, chip: "Knitted collar", sub: "Self-colour" };
+  }
+  function detailParts(p) {
+    const st = ST(p), g = st.graphic, k = knitOf(p), fp = fabricParts(p), body = bodyName(p), out = [];
+    const c = collarInfo(p);
+    out.push({ part: "collar", title: c.title, text: c.text });
+    out.push(johnny(p)
+      ? { part: "placket", title: "Open placket", text: "No buttons, just a clean V opening that sits flat on its own or under a jacket." }
+      : { part: "placket", title: "Button placket", text: longSleeve(p) ? "A rugby-style button placket. Done up for the office, open at the weekend." : "A classic button placket. Done up for dinner, open at the neck when it's hot." });
+    out.push({ part: "knit", title: k.name, text: `${fp.gsm ? fp.gsm + ". " : ""}${k.line}${st.stripes ? " The stripes are knitted in, not printed on." : (st.tipping || []).length ? " Finished with tipped sleeves." : ""}` });
+    if (g && g.text) {
+      const m = method(p), gc = colourName(g.color);
+      out.push(g.kind === "number"
+        ? { part: "graphic", title: "Chest number", text: `A ${m.adj ? m.adj + " " : ""}“${g.text}” across the chest, ${gc} on ${body}.` }
+        : g.size === "small"
+          ? { part: "graphic", title: "Script lettering", text: `A small “${g.text}” script, ${m.phrase === "on the chest" ? "" : m.phrase + " "}over the heart in ${gc}.` }
+          : { part: "graphic", title: "Script lettering", text: `“${g.text}” ${m.phrase} across the chest, ${gc} on ${body}.` });
+    }
+    return out;
+  }
+
+  /* ---------- styling tips (props in the flat lay are for styling only; they're not sold) ---------- */
+  const TIPS = {
+    polo: { tips: [
+      ["With light-wash straight jeans and white sneakers", "The weekend default. Collar down, top button open, hem out."],
+      ["Tucked into pleated trousers for dinner", "Add a slim leather belt and loafers. The collar does the dressing up."],
+      ["With drawstring shorts and slides", "Easy for Sunday mornings, beach towns and long chai breaks."]] },
+    rugby: { tips: [
+      ["With dark straight jeans and suede trainers", "Push the sleeves to the elbow and leave the hem out."],
+      ["Under an open overshirt in winter", "Let the collar sit over the overshirt for a layered, easy look."],
+      ["With cream chinos for Sunday lunch", "A loose front tuck keeps it neat without trying too hard."]] },
+    knit: { tips: [
+      ["Tucked into pleated trousers for dinner", "The open collar reads smart without a tie."],
+      ["Under an open overshirt in winter", "Two quiet colours, with the collar laid out over the overshirt."],
+      ["With light-wash straight jeans and white sneakers", "Sleeves pushed up, nothing else to think about."]] }
+  };
+  const tipsFor = p => (johnny(p) || ["rib", "waffle"].includes(ST(p).knit) ? TIPS.knit : longSleeve(p) ? TIPS.rugby : TIPS.polo);
+  // the flat lay's own label says what it's styled with ("… styled with ecru trousers and white sneakers");
+  // lead the tips with that outfit so the picture and the words agree
+  const SHOWN_TIP = [
+    [/ecru|cream|off-white/i, ["With ecru trousers and white sneakers", "Light and clean, the way club polos were first worn."]],
+    [/black/i, ["With black trousers and white sneakers", "A sharp, simple contrast for evenings out."]],
+    [/jean|denim/i, ["With light-wash straight jeans and white sneakers", "The weekend default. Collar down, top button open."]]
+  ];
+  function styleTips(p, shown) {
+    const set = tipsFor(p);
+    if (!shown) return set.tips;
+    const hit = SHOWN_TIP.find(([re]) => re.test(shown));
+    if (!hit) return set.tips;
+    const dup = t => (/jean/i.test(hit[1][0]) && /jean/i.test(t[0])) || (/trousers and white/i.test(t[0]));
+    return [hit[1], ...set.tips.filter(t => !dup(t))].slice(0, 3);
+  }
+
+  /* ---------- Art scenes with graceful fallback ----------
+     Art.campaign() answers unknown scenes with its generic flat lay; we detect that by comparing labels,
+     so new scenes (look:<id>, detail:<id>:<part>) light up as soon as art.js ships them. */
+  let probeLabel;
+  const labelOf = svg => ((String(svg).match(/<svg\b[^>]*\baria-label="([^"]*)"/) || [])[1] || "");
+  function artScene(scene, ratio) {
+    if (typeof Art === "undefined" || typeof Art.campaign !== "function") return "";
+    try {
+      const svg = String(Art.campaign(scene, { ratio }) || "");
+      if (!/^\s*<svg/.test(svg)) return "";
+      if (probeLabel === undefined) { try { probeLabel = labelOf(Art.campaign("__unknown__", { ratio: "1:1" })); } catch (e) { probeLabel = ""; } }
+      if (probeLabel && labelOf(svg) === probeLabel) return "";
+      return svg;
+    } catch (e) { return ""; }
+  }
 
   /* ---------- gallery slides ---------- */
   function slidesOf(p) {
@@ -87,7 +199,7 @@
     return [
       { i: 0, view: "front", label: "Front" },
       { i: 0, view: "back", label: "Back" },
-      { i: 0, view: "detail", label: "Print detail" },
+      { i: 0, view: "detail", label: "Detail" },
       { i: 0, view: "folded", label: "Folded" }
     ];
   }
@@ -109,9 +221,9 @@
 
   /* ---------- size charts (inches, garment laid flat) ---------- */
   const CHARTS = {
-    oversized: { title: "Oversized tee", note: "Garment measurements, laid flat. Chest is armpit to armpit × 2; length is from the high point of the shoulder to the hem.",
-      cols: ["Chest", "Length"], rows: { S: [44, 27], M: [46, 28], L: [48, 29], XL: [50, 30], XXL: [52, 31] },
-      extra: ["Dropped shoulder: the seam sits 2–3 in below your natural shoulder. That is the look.", "Prefer a regular fit? Size down one."] },
+    polo: { title: "Polos & rugbys", note: "Garment measurements, laid flat. A: chest, armpit to armpit × 2. B: length, from the high point of the shoulder to the hem.",
+      cols: ["Chest", "Length"], marks: ["A", "B"], rows: { S: [42, 27], M: [44, 28], L: [46, 29], XL: [48, 30], XXL: [50, 31] },
+      extra: ["Short- and long-sleeve styles share the same body measurements.", "Rib and waffle knits have a little natural stretch; piqué and jersey hold their shape."] },
     tops: { title: "Tops", note: "Body measurements. Measure around the fullest part of the chest, under the arms.",
       cols: ["Chest", "Length", "Shoulder"], rows: { XS: [36, 26, 16.5], S: [38, 27, 17], M: [40, 28, 17.5], L: [42, 29, 18], XL: [44, 30, 18.5], XXL: [46, 31, 19] } },
     formal: { title: "Shirts (collar sizes)", note: "Size = chest in inches. Collar is measured around the base of the neck, with one finger of room.",
@@ -129,26 +241,43 @@
     if (p.shape === "shorts") return numeric ? CHARTS.shorts : CHARTS.easy;
     if (p.shape === "pants") return numeric ? CHARTS.bottoms : CHARTS.easy;
     if (numeric) return CHARTS.formal;
-    if (p.fit === "Oversized" && TOPS.includes(p.shape)) return CHARTS.oversized;
+    if (isPolo(p)) return CHARTS.polo;
     return CHARTS.tops;
   }
+  const fitAdvice = p => (p.fit === "Oversized" ? "Oversized fit — take your usual size, or size down for a regular fit."
+    : `${p.fit || "Regular"} fit — true to size. Between sizes? Size down.`);
   const cell = (v, unit) => {
     const f = n => (unit === "cm" ? Math.round(n * 2.54) : n);
     return Array.isArray(v) ? `${f(v[0])}–${f(v[1])}` : f(v);
   };
-  const TEE_FIG = `<svg class="sg-fig" viewBox="0 0 200 190" aria-hidden="true" fill="none">
-    <path d="M64 24 L38 34 L12 64 L34 88 L48 78 L48 172 L152 172 L152 78 L166 88 L188 64 L162 34 L136 24 Q100 46 64 24 Z" stroke="currentColor" stroke-width="1.2"/>
-    <path d="M48 96 H152" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/><path d="M48 92v8M152 92v8" stroke="currentColor"/>
-    <text x="100" y="90" text-anchor="middle" fill="currentColor" font-family="Jost, Arial, sans-serif" font-size="9" letter-spacing="1.5">CHEST</text>
-    <path d="M176 26 V172" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3"/><path d="M172 26h8M172 172h8" stroke="currentColor"/>
-    <text x="186" y="118" fill="currentColor" font-family="Jost, Arial, sans-serif" font-size="9" letter-spacing="1.5" transform="rotate(-90 186 118)">LENGTH</text>
-  </svg>`;
+  /* line-drawn polo with measurement points (A chest · B length); long sleeves / johnny collar follow the data */
+  function poloFig(p, opts = {}) {
+    const long = p ? longSleeve(p) : false, jn = p ? johnny(p) : false;
+    const T = (x, y, t) => `<g class="fig-mark"><circle cx="${x}" cy="${y}" r="8" fill="#fff" stroke="currentColor" stroke-width="1"/><text x="${x}" y="${y + 3.4}" text-anchor="middle" fill="currentColor" font-family="Jost, Arial, sans-serif" font-size="9.5" font-weight="500">${t}</text></g>`;
+    const sleeves = long
+      ? `<path d="M90 34 L58 46 L34 112 L22 196 L42 200 L58 124 L70 96" /><path d="M150 34 L182 46 L206 112 L218 196 L198 200 L182 124 L170 96" />
+         <path d="M23.4 186 L43.6 190 M216.6 186 L196.4 190" stroke-width=".8"/>`
+      : `<path d="M90 34 L58 46 L28 92 L50 108 L70 88" /><path d="M150 34 L182 46 L212 92 L190 108 L170 88" />
+         <path d="M32 86 L53 102 M208 86 L187 102" stroke-width=".8"/>`;
+    const collar = jn
+      ? `<path d="M90 34 Q120 26 150 34" /><path d="M90 34 L104 62 L120 76" /><path d="M150 34 L136 62 L120 76" /><path d="M100 34 L120 76 L140 34" stroke-width=".8"/>`
+      : `<path d="M90 34 Q120 26 150 34" /><path d="M90 34 L100 62 L118 48 Z" /><path d="M150 34 L140 62 L122 48 Z" />
+         <path d="M114 48 V94 H126 V48" stroke-width=".8"/><circle cx="120" cy="62" r="1.8" fill="currentColor" stroke="none"/><circle cx="120" cy="80" r="1.8" fill="currentColor" stroke="none"/>`;
+    return `<svg class="${opts.cls || "sg-fig"}" viewBox="0 0 240 240" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+      <path d="M90 34 L70 40 L70 222 L170 222 L170 40 L150 34" />${sleeves}${collar}
+      <path d="M70 214 H170" stroke-width=".8"/>
+      <g stroke-dasharray="3 3" stroke-width="1"><path d="M70 112 H170"/><path d="M196 30 V222"/></g>
+      <path d="M70 107v10M170 107v10M191 30h10M191 222h10" stroke-width="1"/>
+      <path d="M150 34 L196 30" stroke-width=".6" stroke-dasharray="1.5 2.5"/><path d="M170 222 H191" stroke-width=".6" stroke-dasharray="1.5 2.5"/>
+      ${T(120, 112, "A")}${T(196, 128, "B")}
+    </svg>`;
+  }
   function chartTable(ch, p, unit) {
     const sizes = (p.sizes || []).filter(s => ch.rows[s]);
     return `<div class="sg-scroll"><table class="sg-table">
         <caption class="sr-only">${esc(ch.title)} measurements in ${unit === "cm" ? "centimetres" : "inches"}</caption>
-        <thead><tr><th scope="col">Size</th>${ch.cols.map(c => `<th scope="col">${c} (${unit})</th>`).join("")}</tr></thead>
-        <tbody>${sizes.map(s => `<tr class="${sel.size === s ? "is-sel" : ""}"><th scope="row">${esc(s)}</th>${ch.rows[s].map(v => `<td>${cell(v, unit)}</td>`).join("")}</tr>`).join("")}</tbody>
+        <thead><tr><th scope="col">Size</th>${ch.cols.map((c, i) => `<th scope="col">${ch.marks ? `<span class="sg-mark" aria-hidden="true">${ch.marks[i]}</span>` : ""}${c} (${unit})</th>`).join("")}</tr></thead>
+        <tbody>${sizes.map(s => `<tr data-s="${esc(s)}" class="${sel.size === s ? "is-sel" : ""}"><th scope="row">${esc(s)}</th>${ch.rows[s].map(v => `<td>${cell(v, unit)}</td>`).join("")}</tr>`).join("")}</tbody>
       </table></div>`;
   }
   function openSizeGuide() {
@@ -156,7 +285,7 @@
     if (!p) return;
     let unit = "in";
     try { unit = localStorage.getItem("bhakshi_unit") === "cm" ? "cm" : "in"; } catch (e) { /* ignore */ }
-    const ch = chartFor(p), over = ch === CHARTS.oversized;
+    const ch = chartFor(p);
     const html = `<div class="sg">
       <h2 class="sg-title">Size guide</h2>
       <p class="sg-sub">${esc(short(p))} · ${esc(p.fit || "")} fit</p>
@@ -166,9 +295,9 @@
       </div>
       <div data-sg-body>${chartTable(ch, p, unit)}</div>
       <div class="sg-notes">
-        ${over ? `<p class="sg-lead">Cut big on purpose. Take your usual size for the boxy, dropped-shoulder drape, or size down for a regular fit.</p>` : `<p class="sg-lead">Between sizes? Size up for a relaxed drape, or down for a closer fit.</p>`}
+        <p class="sg-lead">${esc(fitAdvice(p))}</p>
         <div class="sg-how">
-          ${TOPS.includes(p.shape) ? TEE_FIG : ""}
+          ${isPolo(p) || TOPS.includes(p.shape) ? poloFig(p) : ""}
           <div>
             <p class="sg-h">How we measure</p>
             <p>${esc(ch.note)}</p>
@@ -187,6 +316,12 @@
       try { localStorage.setItem("bhakshi_unit", unit); } catch (err) { /* ignore */ }
       $$("[data-unit]", c).forEach(b => b.setAttribute("aria-checked", String(b.dataset.unit === unit)));
       $("[data-sg-body]", c).innerHTML = chartTable(ch, p, unit);
+      unitPref = unit;
+      const fb = $("#pdpFit [data-ff-body]");
+      if (fb && P === p) {
+        $$("#pdpFit [data-ffunit]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.ffunit === unit)));
+        fb.innerHTML = chartTable(chartFor(p), p, unit);
+      }
     });
   }
 
@@ -243,44 +378,51 @@
 
   /* ---------- markup: info ---------- */
   function careFor(p) {
-    const f = (p.fabric || "").toLowerCase();
+    const f = (p.fabric || "").toLowerCase(), knit = ST(p).knit;
     if (f.includes("denim")) return ["Wash inside out in cold water", "Wash with similar colours; indigo may bleed in the first few washes", "Do not tumble dry", "Dry in shade"];
     if (f.includes("linen")) return ["Gentle machine wash, cold", "Do not wring; reshape while damp", "Iron while slightly damp on medium heat", "Dry in shade"];
     if (f.includes("fleece")) return ["Machine wash cold, inside out", "Do not bleach", "Line dry or tumble dry low", "Do not iron directly on the fleece face"];
-    const t = (p.techniques || []).map(x => x.toLowerCase());
-    const out = ["Machine wash cold, inside out, with similar colours", "Do not bleach or tumble dry"];
-    out.push(prints(p).front || prints(p).back ? "Do not iron directly on the print" : "Iron on medium heat");
-    if (t.some(x => x.includes("embroider"))) out.push("Turn inside out before washing to protect the stitching");
-    if (t.some(x => x.includes("puff") || x.includes("paint"))) out.push("Hand wash recommended for the first few washes to keep raised and painted areas crisp");
-    out.push("Dry in shade to keep the colour deep");
+    let out;
+    if (knit === "rib" || knit === "waffle" || /rib|waffle/.test(f)) {
+      out = ["Gentle machine wash cold, or hand wash", "Dry flat in shade so the knit keeps its shape; don't hang it wet", "Do not wring, bleach or tumble dry", "Steam or iron on low if needed"];
+    } else {
+      out = ["Machine wash cold, inside out, with similar colours", "Do not bleach or tumble dry",
+        knit === "pique" || /piqu/.test(f) ? "Dry on a hanger in shade to keep the collar flat" : "Line dry in shade to keep the colour deep",
+        "Iron on medium heat"];
+    }
+    if (hasTech(p, /puff/i)) out.push("Do not iron directly on the puff print");
+    if (hasTech(p, /embroider/i)) out.push("Iron the embroidery from the reverse");
+    if (hasTech(p, /appliq/i)) out.push("Iron the felt number from the reverse, on low");
+    if (ST(p).stripes || hasTech(p, /yarn-dyed/i)) out.push("Wash with similar colours for the first few washes");
     return out;
   }
 
   function accHTML(p) {
-    const pr = prints(p), fp = fabricParts(p), ch = chartFor(p);
+    const fp = fabricParts(p), ch = chartFor(p), st = ST(p), k = knitOf(p), c = collarInfo(p);
     const techs = p.techniques || [];
+    const g = st.graphic;
     const items = [];
     items.push(["details", "Details", `<p>${esc(p.desc || "")}</p>
       <dl class="acc-spec">
         <div><dt>Fabric</dt><dd>${esc(p.fabric || "")}</dd></div>
         <div><dt>Fit</dt><dd>${esc(p.fit || "")}</dd></div>
         <div><dt>Colour</dt><dd>${esc(p.colorName || "")}</dd></div>
-        ${pr.front && PRINTS[pr.front] ? `<div><dt>Front</dt><dd>${esc(PRINTS[pr.front].front)}</dd></div>` : ""}
-        ${pr.back && PRINTS[pr.back] ? `<div><dt>Back</dt><dd>${esc(PRINTS[pr.back].back)}</dd></div>` : ""}
+        ${isPolo(p) ? `<div><dt>Collar</dt><dd>${esc(c.chip)}${c.sub && c.sub !== c.chip ? `, ${esc(c.sub.toLowerCase())}` : ""}</dd></div>
+        <div><dt>Sleeves</dt><dd>${longSleeve(p) ? "Long" : (st.tipping || []).length ? "Short, tipped" : "Short"}</dd></div>
+        <div><dt>Placket</dt><dd>${johnny(p) ? "Open johnny, no buttons" : "Button placket"}</dd></div>` : ""}
+        ${g && g.text ? `<div><dt>Chest</dt><dd>“${esc(g.text)}” ${g.kind === "number" ? "number" : "script"}${method(p).adj ? `, ${esc(method(p).adj)}` : ""}</dd></div>` : ""}
         ${p.edition ? `<div><dt>Edition</dt><dd>Limited to ${p.edition} pieces</dd></div>` : ""}
         <div><dt>Made in</dt><dd>India</dd></div>
-      </dl>`]);
-    if (techs.length) {
-      items.push(["craft", "The craft", `${techs.map(t => `<div class="acc-craft"><p class="acc-craft-h">${esc(t)}</p><p>${esc(craftText(t))}</p></div>`).join("")}
-        <p class="acc-muted">Made in small batches${p.edition ? ` of ${p.edition}` : ""}. Slight variations from piece to piece are part of the process, not a flaw.</p>`]);
-    }
-    const sizes = (p.sizes || []).filter(s => ch.rows[s]);
-    items.push(["fit", "Size &amp; fit", `${p.fit === "Oversized"
-        ? `<p>Oversized and boxy, with dropped shoulders and a slightly longer body. Take your usual size for the intended drape; size down one for a regular fit.</p>`
-        : `<p>${esc(p.fit || "Regular")} fit. Take your usual size.</p>`}
-      ${sizes.length ? `<div class="sg-scroll"><table class="sg-table sg-table-s"><thead><tr><th scope="col">Size</th>${ch.cols.map(c => `<th scope="col">${c} (in)</th>`).join("")}</tr></thead>
-        <tbody>${sizes.map(s => `<tr><th scope="row">${esc(s)}</th>${ch.rows[s].map(v => `<td>${cell(v, "in")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
-      ${fp.gsm ? `<p class="acc-muted">${esc(fp.gsm)} heavyweight cotton. It holds its shape and softens with every wash.</p>` : ""}
+      </dl>
+      ${techs.length ? `<div class="acc-craft-wrap"><p class="acc-sub">How it's made</p>${techs.map(t => `<div class="acc-craft"><p class="acc-craft-h">${esc(t)}</p><p>${esc(craftText(t))}</p></div>`).join("")}</div>` : ""}`]);
+    items.push(["care", "Fabric &amp; care", `<p>${esc([fp.comp, fp.gsm].filter(Boolean).join(", "))}${fp.comp || fp.gsm ? ". " : ""}${esc(k.fabric)}</p>
+      <ul class="acc-list">${careFor(p).map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      <p class="acc-muted">Made in small runs${p.edition ? ` of ${p.edition}` : ""} in India.</p>`]);
+    const sizes = (p.sizes || []).filter(z => ch.rows[z]);
+    items.push(["fit", "Size &amp; fit", `<p>${esc(fitAdvice(p))}</p>
+      ${sizes.length ? `<div class="sg-scroll"><table class="sg-table sg-table-s"><thead><tr><th scope="col">Size</th>${ch.cols.map(x => `<th scope="col">${x} (in)</th>`).join("")}</tr></thead>
+        <tbody>${sizes.map(z => `<tr><th scope="row">${esc(z)}</th>${ch.rows[z].map(v => `<td>${cell(v, "in")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
+      ${isPolo(p) ? `<p class="acc-muted">Cut with a little room through the chest and a straight hem that works tucked or untucked.</p>` : ""}
       <p><button type="button" class="link-underline" data-sizeguide>Open the full size guide</button></p>`]);
     items.push(["ship", "Shipping &amp; returns", `<ul class="acc-list">
         <li>Dispatched in 1–2 working days, delivered in 3–7 days across India.</li>
@@ -288,10 +430,9 @@
         ${STORE.codFee !== -1 ? `<li>Cash on Delivery${STORE.codFee > 0 ? ` (+${PRICE(STORE.codFee)})` : ""}, or pay by UPI.</li>` : `<li>Pay by UPI.</li>`}
         <li>Easy size exchange within 7 days of delivery. Unworn, with tags on.</li></ul>
         <p><a class="link-underline" href="policies.html#exchange">Shipping &amp; exchange policy</a></p>`]);
-    items.push(["care", "Care", `<ul class="acc-list">${careFor(p).map(c => `<li>${esc(c)}</li>`).join("")}</ul>`]);
-    return `<div class="acc">${items.map(([k, t, b], i) => `<div class="acc-item ${i === 0 ? "is-open" : ""}">
-      <h2 class="acc-h"><button type="button" class="acc-head" id="acc-${k}-h" aria-expanded="${i === 0}" aria-controls="acc-${k}"><span>${t}</span>${IC.plus}</button></h2>
-      <div class="acc-body" id="acc-${k}" role="region" aria-labelledby="acc-${k}-h" ${i === 0 ? "" : "hidden"}><div class="acc-inner">${b}</div></div></div>`).join("")}</div>`;
+    return `<div class="acc">${items.map(([k2, t, b], i) => `<div class="acc-item ${i === 0 ? "is-open" : ""}">
+      <h2 class="acc-h"><button type="button" class="acc-head" id="acc-${k2}-h" aria-expanded="${i === 0}" aria-controls="acc-${k2}"><span>${t}</span>${IC.plus}</button></h2>
+      <div class="acc-body" id="acc-${k2}" role="region" aria-labelledby="acc-${k2}-h" ${i === 0 ? "" : "hidden"}><div class="acc-inner">${b}</div></div></div>`).join("")}</div>`;
   }
 
   const waText = p => `Hi ${STORE.name}! I have a question about "${p.name}" (${PRICE(p.price)})${sel.size ? `, size ${sel.size}` : ""}. ${url(p)}`;
@@ -352,7 +493,7 @@
         <div class="pi-sizes" role="group" aria-labelledby="sizeLbl">${(p.sizes || []).map(z =>
           `<button type="button" class="pi-sz" data-sz="${esc(z)}" aria-pressed="${sel.size === z}" ${sold ? "disabled" : ""} aria-label="Size ${esc(z)}${sold ? ", sold out" : ""}">${esc(z)}</button>`).join("")}</div>
         <p class="pi-size-err" id="sizeErr" role="alert" hidden>Please select a size.</p>
-        <p class="pi-fitnote">${p.fit === "Oversized" ? "Oversized fit. Size down for a regular fit." : `${esc(p.fit || "Regular")} fit.`}
+        <p class="pi-fitnote">${esc(fitAdvice(p))}
           ${sold ? "" : `<button type="button" class="pi-link" data-fitfinder data-product="${esc(p.id)}">Find my size</button>`}</p>
       </div>
 
@@ -455,13 +596,108 @@
     btn.disabled = !on.length;
   }
 
+  /* ---------- 1 · The details: square close-ups with generated captions ---------- */
+  // zoom targets on the front packshot (percent of the 5:7 frame) used until art.js ships detail scenes
+  const ZOOM = { collar: [50, 31, 2.3], placket: [50, 37, 2.6], knit: [36, 62, 3.2], graphic: [50, 45, 1.9], graphicSmall: [60, 41, 2.8] };
+  function detailMedia(p, d, k) {
+    if (p.images && p.images.length > 2) {
+      const i = 2 + (k % (p.images.length - 2));
+      return productImage(p, i, "detail");
+    }
+    const art = artScene(`detail:${p.id}:${d.part}`, "1:1");
+    if (art) return art;
+    if (d.part === "collar") return productImage(p, 0, "detail");
+    const z = d.part === "graphic" && ST(p).graphic && ST(p).graphic.size === "small" ? ZOOM.graphicSmall : ZOOM[d.part] || ZOOM.collar;
+    return `<div class="dt-zoom" style="--zx:${z[0]}%;--zy:${z[1]}%;--zs:${z[2]}">${productImage(p, 0, "front")}</div>`;
+  }
+  function detailsHTML(p) {
+    if (!isPolo(p)) return "";
+    const parts = detailParts(p);
+    return `<section class="pdp-section pdp-details" aria-labelledby="detailsH"><div class="container">
+      <div class="pdp-section-head"><h2 class="pdp-section-h" id="detailsH">The details</h2><p class="pdp-section-note">${esc(short(p))} · ${esc(p.colorName || "")}</p></div>
+      <ul class="dt-grid" data-n="${parts.length}" data-reveal="stagger">${parts.map((d, k) => `<li class="dt-item" style="--i:${k}">
+        <figure class="dt-fig"><div class="dt-media">${detailMedia(p, d, k)}</div>
+          <figcaption class="dt-cap"><span class="dt-n" aria-hidden="true">${pad2(k + 1)}</span><span class="dt-t">${esc(d.title)}</span><span class="dt-d">${esc(d.text)}</span></figcaption></figure>
+      </li>`).join("")}</ul>
+    </div></section>`;
+  }
+
+  /* ---------- 2 · Style it with: outfit flat lay + three tips ---------- */
+  function styleHTML(p) {
+    if (!isPolo(p)) return "";
+    let look = p.images && p.images.length ? "" : artScene(`look:${p.id}`, "4:5");
+    const isLook = !!look;
+    const shown = isLook ? ((labelOf(look).match(/styled with (.+)$/i) || [])[1] || "") : "";
+    const tips = styleTips(p, shown);
+    if (!look) look = (p.images && p.images.length) ? productImage(p, 0, "front") : (artScene(`single:${p.id}`, "4:5") || productImage(p, 0, "front"));
+    const buy = BUY(p);
+    return `<section class="pdp-section pdp-style" aria-labelledby="styleH"><div class="container">
+      <div class="st-grid">
+        <figure class="st-visual" data-reveal="fade">${look}</figure>
+        <div class="st-panel">
+          <h2 class="pdp-section-h" id="styleH">Style it with</h2>
+          <p class="st-lead">Three easy ways to wear the ${esc(short(p))}, from weekday to weekend.</p>
+          <ol class="st-tips">${tips.map(([a, b], i) => `<li class="st-tip"><span class="st-n" aria-hidden="true">${pad2(i + 1)}</span>
+            <div><p class="st-t">${esc(a)}</p><p class="st-d">${esc(b)}</p></div></li>`).join("")}</ol>
+          ${shown ? `<p class="st-shown"><span>Shown with</span> ${esc(shown)}. The styling pieces aren't sold, just the polo.</p>` : ""}
+          ${buy ? `<p class="st-cta"><button type="button" class="link-underline" data-to-size>Choose your size</button></p>` : ""}
+        </div>
+      </div>
+    </div></section>`;
+  }
+
+  /* ---------- 3 · Fabric & fit: icon row · measured drawing · size chart ---------- */
+  const FI = {
+    fabric: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true"><rect x="4.5" y="4.5" width="19" height="19"/><path d="M4.5 9.5h19M4.5 14h19M4.5 18.5h19M9.5 4.5v19M14 4.5v19M18.5 4.5v19" stroke-width=".6"/></svg>`,
+    fit: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" aria-hidden="true"><path d="M14 5.5a2 2 0 1 1 2 2c-1 0-2 .6-2 1.6v1.4"/><path d="M14 10.5 3.5 18.5c-.8.6-.4 1.8.6 1.8h19.8c1 0 1.4-1.2.6-1.8L14 10.5Z"/></svg>`,
+    collar: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" aria-hidden="true"><path d="M8 7.5c3.6-1.4 8.4-1.4 12 0"/><path d="M8 7.5 10.5 15 14 11.5 17.5 15 20 7.5"/><path d="M8 7.5 5 9v14h18V9l-3-1.5"/><path d="M14 11.5V23" stroke-width=".7"/><circle cx="14" cy="15.5" r=".9" fill="currentColor" stroke="none"/><circle cx="14" cy="19" r=".9" fill="currentColor" stroke="none"/></svg>`,
+    care: `<svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5 6 22.5h16l2.5-14"/><path d="M3.5 8.5c1.8 1.4 3.5 1.4 5.25 0s3.5-1.4 5.25 0 3.5 1.4 5.25 0 3.5-1.4 5.25 0"/><text x="14" y="19" text-anchor="middle" fill="currentColor" stroke="none" font-family="Jost, Arial, sans-serif" font-size="6.5">30°</text></svg>`
+  };
+  let unitPref = "in";
+  try { unitPref = localStorage.getItem("bhakshi_unit") === "cm" ? "cm" : "in"; } catch (e) { /* ignore */ }
+  function fitHTML(p) {
+    const ch = chartFor(p), fp = fabricParts(p), k = knitOf(p), c = collarInfo(p);
+    if (!isPolo(p) || ch !== CHARTS.polo) return "";
+    const easyCare = ["rib", "waffle"].includes(ST(p).knit) ? ["Gentle wash, cold", "Dry flat in shade"] : ["Machine wash cold", "Dry in shade"];
+    const icons = [
+      ["fabric", "Fabric", fp.comp || k.name, fp.gsm || k.short],
+      ["fit", "Fit", `${p.fit || "Regular"} fit`, "True to size"],
+      ["collar", "Collar", c.chip, c.sub],
+      ["care", "Care", easyCare[0], easyCare[1]]
+    ];
+    return `<section class="pdp-section pdp-fitpanel" aria-labelledby="fitH"><div class="container">
+      <div class="pdp-section-head"><h2 class="pdp-section-h" id="fitH">Fabric &amp; fit</h2></div>
+      <ul class="ff-icons" data-reveal="stagger">${icons.map(([ic, kx, v, sub], i) => `<li class="ff-icon" style="--i:${i}">${FI[ic]}<p class="ff-k">${kx}</p><p class="ff-v">${esc(v)}</p><p class="ff-s">${esc(sub || "")}</p></li>`).join("")}</ul>
+      <div class="ff-grid">
+        <figure class="ff-fig">${poloFig(p, { cls: "ff-svg" })}
+          <figcaption><p><b>A</b> Chest — armpit to armpit, × 2</p><p><b>B</b> Length — high point of the shoulder to the hem</p><p class="ff-flat">Garment measured laid flat.</p></figcaption></figure>
+        <div class="ff-chart">
+          <div class="ff-chart-head"><p class="ff-chart-t">Size chart</p>
+            <div class="sg-units" role="radiogroup" aria-label="Units">
+              <button type="button" role="radio" data-ffunit="in" aria-checked="${unitPref === "in"}">Inches</button>
+              <button type="button" role="radio" data-ffunit="cm" aria-checked="${unitPref === "cm"}">cm</button>
+            </div></div>
+          <div data-ff-body>${chartTable(ch, p, unitPref)}</div>
+          <p class="ff-advice"><b>${esc((p.fit || "Regular") + " fit — true to size.")}</b> Between sizes? Size down.</p>
+          <p class="ff-links"><button type="button" class="link-underline" data-sizeguide>Full size guide</button>${isSold(p) ? "" : `<span aria-hidden="true">·</span><button type="button" class="link-underline" data-fitfinder data-product="${esc(p.id)}">Find my size</button>`}</p>
+        </div>
+      </div>
+    </div></section>`;
+  }
+
   /* ---------- rows ---------- */
   function rowHTML(id, title, items, link) {
     if (!items.length) return "";
     return `<section class="pdp-section pdp-row-sec" aria-labelledby="row-${id}"><div class="container">
       <div class="pdp-section-head"><h2 class="pdp-section-h" id="row-${id}">${title}</h2>${link ? `<a class="link-underline" href="${link}">View all</a>` : ""}</div>
-      <div class="pdp-row grid-products">${items.map(productCard).join("")}</div>
+      <div class="pdp-row grid-products" style="--n:${Math.min(5, Math.max(4, items.length))}">${items.map(productCard).join("")}</div>
     </div></section>`;
+  }
+  /* 4 · Complete the club: every other style in the drop (in stock first), else the old "you may like" pick */
+  function clubFor(p) {
+    const idx = new Map(PRODUCTS.map((x, i) => [x.id, i]));
+    return PRODUCTS.filter(x => x.id !== p.id && x.family !== p.family)
+      .sort((a, b) => isSold(a) - isSold(b) || idx.get(a.id) - idx.get(b.id)).slice(0, 5);
   }
   function moreFor(p) {
     const grp = id => (CATEGORIES.find(c => c.id === id) || {}).group, g = grp(p.category);
@@ -512,6 +748,7 @@
     const blk = $("#sizeBlock", root); if (blk) blk.classList.remove("has-error");
     const bs = $("#barSize"); if (bs) bs.value = sel.size;
     const ls = $(`[data-look-size="${CSS.escape(P.id)}"]`); if (ls) ls.value = sel.size;
+    $$("#pdpFit tr[data-s]").forEach(tr => tr.classList.toggle("is-sel", tr.dataset.s === sel.size));
     const w = $("#waLink", root); if (w) w.href = WA(waText(P));
     const n = $("#notifyBtn", root); if (n) n.href = WA(DS().live ? notifyText(P) : dropNotifyText(P));
     if (fromPick) say(`Size ${sel.size} selected for you`, "success");
@@ -696,6 +933,7 @@
     if (!$('meta[name="robots"]')) document.head.insertAdjacentHTML("beforeend", `<meta name="robots" content="noindex">`);
     const ld = $("#ldProduct"); if (ld) ld.remove();
     $("#pdpLook").innerHTML = "";
+    ["#pdpDetails", "#pdpStyle", "#pdpFit"].forEach(k => { $(k).innerHTML = ""; });
     $("#buyBar").innerHTML = "";
     $("#pdpMore").innerHTML = rowHTML("more", "You may like", PRODUCTS.filter(x => !isSold(x)).slice(0, 4), "shop.html");
     renderRecent(null);
@@ -720,7 +958,13 @@
     $("#buyBar").innerHTML = buybarHTML(p);
     $("#pdpLook").innerHTML = lookHTML(p);
     updateLook();
-    $("#pdpMore").innerHTML = rowHTML("more", "You may also like", moreFor(p), `shop.html?cat=${encodeURIComponent(p.category)}`);
+    $("#pdpDetails").innerHTML = detailsHTML(p);
+    $("#pdpStyle").innerHTML = styleHTML(p);
+    $("#pdpFit").innerHTML = fitHTML(p);
+    const club = isPolo(p) && /club/i.test(DROP.name || "");
+    $("#pdpMore").innerHTML = club
+      ? rowHTML("more", "Complete the club", clubFor(p), "shop.html")
+      : rowHTML("more", "You may also like", moreFor(p), `shop.html?cat=${encodeURIComponent(p.category)}`);
     renderRecent(p);
     if (typeof Recent !== "undefined" && Recent.add) { try { Recent.add(p.id); } catch (e) { /* ignore */ } }
     seo(p);
@@ -786,6 +1030,26 @@
     const d = e.detail || {};
     if (P && d.size && (!d.productId || d.productId === P.id)) setSize(d.size, true);
   });
+
+  // sections below the buy box (size guide, unit toggle, "choose your size")
+  ["#pdpDetails", "#pdpStyle", "#pdpFit"].forEach(k => $(k).addEventListener("click", e => {
+    if (e.target.closest("[data-sizeguide]")) return openSizeGuide();
+    if (e.target.closest("[data-to-size]")) {
+      const blk = $("#sizeBlock", root);
+      if (!blk) return;
+      const r = blk.getBoundingClientRect();
+      scrollTo({ top: Math.max(0, r.top + scrollY - headerOffset() - 16), behavior: reduceMotion() ? "auto" : "smooth" });
+      setTimeout(() => { const b = $(".pi-sz:not(:disabled)", root); b && b.focus({ preventScroll: true }); }, reduceMotion() ? 0 : 450);
+      return;
+    }
+    const u = e.target.closest("[data-ffunit]");
+    if (u && P) {
+      unitPref = u.dataset.ffunit;
+      try { localStorage.setItem("bhakshi_unit", unitPref); } catch (err) { /* ignore */ }
+      $$("[data-ffunit]", $(k)).forEach(b => b.setAttribute("aria-checked", String(b.dataset.ffunit === unitPref)));
+      $("[data-ff-body]", $(k)).innerHTML = chartTable(chartFor(P), P, unitPref);
+    }
+  }));
 
   $("#buyBar").addEventListener("change", e => { if (e.target.id === "barSize" && e.target.value) setSize(e.target.value); });
   $("#buyBar").addEventListener("click", e => {

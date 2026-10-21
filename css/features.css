@@ -212,6 +212,7 @@
 .ff-fit.active { border-color: var(--f-text); }
 .ff-fit-art { width: 56px; height: 56px; display: block; }
 .ff-fit-art path { fill: none; stroke: var(--f-text); stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ff-fit-art circle { fill: var(--f-text); stroke: none; }
 .ff-fit-text { display: grid; gap: 3px; min-width: 0; }
 .ff-fit-text b { font-weight: 500; font-size: 14px; letter-spacing: .02em; }
 .ff-fit-text b span { font-weight: 400; color: var(--f-text-2); }
@@ -252,6 +253,10 @@
 .ff-tiles div { padding: 12px; border: 1px solid var(--f-line); text-align: center; }
 .ff-tiles dt { font-size: 11.5px; color: var(--f-muted); letter-spacing: .06em; }
 .ff-tiles dd { margin-top: 4px; font-size: 20px; font-weight: 300; }
+.ff-chest { margin-top: 14px !important; padding-top: 14px; border-top: 1px solid var(--f-line); font-size: 12.5px; line-height: 1.65; color: var(--f-muted); text-align: center; text-wrap: pretty; font-variant-numeric: tabular-nums; }
+.ff-chest span { white-space: nowrap; }
+.ff-chest .is-pick { color: var(--f-text); font-weight: 500; }
+.ff-chest b { font-weight: 500; color: var(--f-text-2); }
 .ff-basis { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 10px; margin-top: 16px !important; font-size: 12.5px; color: var(--f-muted); font-variant-numeric: tabular-nums; }
 .ff-edit { min-height: 28px; font-size: 12.5px; }
 .ff-actions { display: grid; gap: 6px; justify-items: center; margin: 22px 0 calc(20px + env(safe-area-inset-bottom)); }

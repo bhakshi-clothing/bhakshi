@@ -14,7 +14,7 @@
     <header class="pg-head container">
       <p class="pg-eyebrow" data-reveal>Help</p>
       <h1 class="pg-title" data-reveal>Contact</h1>
-      <p class="pg-lead" data-reveal>Sizing doubts, an order, a swap — message us and you'll be talking to the people who make the tees.</p>
+      <p class="pg-lead" data-reveal>Sizing doubts, an order, a swap — message us and you'll be talking to the people who make the polos.</p>
     </header>
 
     <!-- CHANNELS -->
@@ -35,7 +35,7 @@
         <a class="pg-channel" data-ig-link target="_blank" rel="noopener" href="#">
           <span class="pg-channel-k"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6" fill="currentColor"/></svg>Instagram</span>
           <b class="pg-channel-v">Follow the drops</b>
-          <span class="pg-channel-note">New drops first, the print process and behind the scenes.</span>
+          <span class="pg-channel-note">New drops first, how the polos are made and behind the scenes.</span>
           <span class="pg-channel-go">Follow</span>
         </a>
       </div>
@@ -53,7 +53,7 @@
         <h2 class="pg-h2" id="msg-h">Send a message</h2>
         <p>Fill this in and we'll open WhatsApp with your message ready to send. Nothing is stored on any server.</p>
         <ul class="pg-list">
-          <li>Not sure about size? Tell us your height, build and usual size — oversized runs big on purpose.</li>
+          <li>Not sure about size? Tell us your height, build and usual size — our polos are cut relaxed, with room through the chest.</li>
           <li>Have an order ID? Add it and we'll find your order faster.</li>
         </ul>
       </div>
@@ -114,7 +114,7 @@
     <section class="pg-section container pg-row pg-row-form" id="exchange" aria-labelledby="ex-h">
       <div class="pg-form-intro">
         <h2 class="pg-h2" id="ex-h">Request an exchange</h2>
-        <p>Our tees are cut oversized on purpose. If the fit isn't right, request a size swap within <b>7 days of delivery</b> — unworn, unwashed, tags on. Swaps depend on stock, since every design is a small run.</p>
+        <p>Our polos are cut relaxed on purpose. If the fit isn't right, request a size swap within <b>7 days of delivery</b> — unworn, unwashed, tags on. Swaps depend on stock, since every style is made in a small run.</p>
         <a class="link-underline" href="policies.html#exchange">Read the exchange policy</a>
       </div>
       <form class="pg-form" id="ex-form" novalidate>
@@ -125,8 +125,8 @@
             <p class="ck-err" id="x-id-err" role="alert"></p>
           </div>
           <div class="ck-field ck-span-2" data-f="x-item" id="x-item-wrap">
-            <label for="x-item">Tee to exchange</label>
-            <input id="x-item" placeholder="e.g. Monsoon Season Tee — size L" required aria-describedby="x-item-err">
+            <label for="x-item">Item to exchange</label>
+            <input id="x-item" placeholder="e.g. Juhu Club Polo — size L" required aria-describedby="x-item-err">
             <p class="ck-err" id="x-item-err" role="alert"></p>
           </div>
           <div class="ck-field" data-f="x-size">
@@ -138,7 +138,7 @@
             <label for="x-reason">Reason</label>
             <div class="ck-select"><select id="x-reason" required aria-describedby="x-reason-err">
               <option value="">Select a reason</option>
-              <option>Too big / too boxy</option><option>Too small / too fitted</option><option>Length isn't right</option>
+              <option>Too big / too roomy</option><option>Too small / too fitted</option><option>Sleeves or length aren't right</option>
               <option>Received a damaged item</option><option>Received the wrong item</option><option>Other</option>
             </select><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
             <p class="ck-err" id="x-reason-err" role="alert"></p>
@@ -148,7 +148,7 @@
             <textarea id="x-note" rows="3" maxlength="500" placeholder="Helps us pick the right swap — e.g. your height, chest size, or what felt off"></textarea>
           </div>
         </div>
-        <p class="pg-form-note">Keep the tee unworn with tags on. Damaged or wrong item? Attach a photo in the WhatsApp chat.</p>
+        <p class="pg-form-note">Keep it unworn and unwashed, tags on — fold knits rather than hanging them. Damaged or wrong item? Attach a photo in the WhatsApp chat.</p>
         <button class="btn btn-block pg-submit" type="submit">Request exchange on WhatsApp</button>
       </form>
     </section>
@@ -228,6 +228,8 @@
 
     // exchange — sizes come from the products actually on sale
     const ALL_SIZES = [...new Set(PRODUCTS.flatMap(p => p.sizes || []))];
+    const itemHint = PRODUCTS[0] ? `e.g. ${String(PRODUCTS[0].name).split(" — ")[0]} — size L` : "e.g. product name — size L";
+    g("x-item").placeholder = itemHint;
     const fillSizes = list => { g("x-size").innerHTML = `<option value="">Select size</option>` + list.map(s => `<option>${esc(s)}</option>`).join(""); };
     fillSizes(ALL_SIZES);
     function syncExchangeItems() {
@@ -244,7 +246,7 @@
         const upd = () => { const it = lastOrder.items[+sel.value], p = PRODUCTS.find(p => p.id === it.id); fillSizes(p ? p.sizes.filter(s => s !== it.size) : ALL_SIZES); };
         sel.addEventListener("change", upd); upd();
       } else if (!mine && isSelect) {
-        g("x-item").closest(".ck-select").outerHTML = `<input id="x-item" placeholder="e.g. Monsoon Season Tee — size L" required aria-describedby="x-item-err">`;
+        g("x-item").closest(".ck-select").outerHTML = `<input id="x-item" placeholder="${esc(itemHint)}" required aria-describedby="x-item-err">`;
         fillSizes(ALL_SIZES);
       }
     }
@@ -252,7 +254,7 @@
     g("ex-form").addEventListener("submit", e => {
       e.preventDefault();
       setErr("x-id", orderMsg(v("x-id"), true));
-      setErr("x-item", v("x-item") === "" ? "Tell us which tee you'd like to exchange." : "");
+      setErr("x-item", v("x-item") === "" ? "Tell us which piece you'd like to exchange." : "");
       setErr("x-size", !v("x-size") ? "Choose the size you'd like instead." : "");
       setErr("x-reason", !v("x-reason") ? "Please choose a reason." : "");
       if (!firstBad(["x-id", "x-item", "x-size", "x-reason"])) return;

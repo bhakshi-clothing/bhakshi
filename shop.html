@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>All products | BHAKSHI</title>
-  <meta name="description" content="Shop BHAKSHI: heavyweight oversized graphic tees, screen printed and finished by hand in India in limited units. Cash on Delivery, free shipping above Rs. 999 and easy 7-day size exchange.">
+  <meta name="description" content="Shop BHAKSHI Drop 01, The Club Edit: collared polos, rugby stripes, script polos and knits, made in India in small runs. Cash on Delivery, free shipping above Rs. 999 and easy 7-day size exchange.">
   <meta name="theme-color" content="#ffffff">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
@@ -20,7 +20,9 @@
     <header class="container shop-head">
       <p class="shop-kicker" id="shopKicker" hidden></p>
       <h1 class="shop-title" id="shopTitle">All products</h1>
+      <p class="shop-intro" id="shopIntro" hidden></p>
       <p class="shop-count" id="shopCount" aria-live="polite"></p>
+      <div class="shop-looks" id="shopLooks" hidden></div>
       <form class="shop-search" id="shopSearch" role="search" hidden>
         <label class="sr-only" for="shopQ">Search products</label>
         <input id="shopQ" name="q" type="search" autocomplete="off" placeholder="Search products" enterkeyhint="search">
@@ -29,6 +31,8 @@
         </button>
       </form>
     </header>
+
+    <div class="container shop-banner" id="shopBanner" hidden></div>
 
     <div class="shop-toolbar" id="shopToolbar">
       <div class="container shop-toolbar-in">

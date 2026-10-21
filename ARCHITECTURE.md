@@ -136,3 +136,24 @@ console errors at the end. Scroll gradually to trigger reveals. Kill your Chrome
 (`pkill -f "remote-debugging-port=PORT"`). Iterate visually ≥ 3 rounds — judge against a top Indian
 premium streetwear site: whitespace, alignment, restraint, image quality. Temp files go in `/tmp/<you>/`;
 any temp page in the project is `_test-<you>.html` and must be DELETED. Never edit another agent's files.
+
+## v3.1 update — Drop 01 is now "The Club Edit": 6 collared polos / rugbys
+The owner's real drop is **collared polo T-shirts and rugby shirts** (contrast collars, stripes, script
+lettering, knits). `js/products.js` now has 6 ORIGINAL polos. Old tees (incl. "Horn OK Please") are gone —
+the owner disliked that style; never bring it back. The owner shared phone screenshots of reference garments
+from other brands/creators (`/tmp/bkphotos/IMG_*.jpg`) — use them ONLY for silhouette / collar / stripe /
+colour cues. **Never reproduce any text, logo, graphic, number styling or brand mark from them**, and never
+use those images on the site.
+
+New product fields:
+- `shape` ∈ `polo` (short-sleeve polo / short-sleeve rugby), `rugby` (long-sleeve rugby or knit polo with
+  buttons), `knitpolo` (long-sleeve knit with an open "johnny" V collar, no buttons). Old shapes still valid.
+- `style` (drives the drawing; all optional):
+  `{ body, collar, sleeve: "short"|"long", placket: "button"|"johnny", knit: "pique"|"jersey"|"rib"|"waffle",
+     tipping: [colours…] (thin stripes near the short-sleeve hem),
+     stripes: { area: "full" (pinstripes/stripes across body + sleeves) | "bands" (a few wide bands across chest/body + sleeves),
+                colors: [..], width, spacing },
+     graphic: { kind: "script"|"number", text, sub, color, size: "large"|"small" } }`
+  `print` is no longer used for these (treat missing `print` as none).
+- Copy direction: the label is now about **collared classics** — piqué, rugby stripes, contrast collars,
+  knits, small runs, made in India. Not "printed by hand", not graphic tees.

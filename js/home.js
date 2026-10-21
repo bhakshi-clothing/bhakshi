@@ -1,8 +1,9 @@
 /* =========================================================
-   BHAKSHI — Home page (index.html). Owner: Home agent.  v3 "minimal craft streetwear".
-   Quick links · campaign hero (+ countdown / notify) · drop row · campaign banner ·
-   three tiles (craft or category) · best sellers carousel · worn by you / Instagram ·
-   brand story · mix & match (feature-flagged <template>) · first access · JSON-LD.
+   BHAKSHI — Home page (index.html). Owner: Home agent.  v3.1 "The Club Edit".
+   Quick links · campaign hero (+ countdown / notify) · the edit · shop by style ·
+   shop the look (hotspots) · the details · why BHAKSHI · story · best sellers ·
+   fit band · worn by you / Instagram · FAQ · mix & match (feature-flagged <template>) ·
+   first access · JSON-LD (store + FAQ).
    Uses globals from products.js, art.js and app.js (see ARCHITECTURE.md), with local
    fallbacks so a missing helper never blanks the page.
    ========================================================= */
@@ -22,17 +23,23 @@
     : String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
   const money = n => (typeof rupee === "function" ? rupee(n)
     : "Rs. " + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const moneyShort = n => "Rs. " + Number(n || 0).toLocaleString("en-IN");
   const pad = n => String(Math.max(0, Math.floor(+n || 0))).padStart(2, "0");
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const title = p => String(p.name).split(" — ")[0];
   const link = p => `product.html?id=${encodeURIComponent(p.id)}`;
   const absUrl = rel => { try { return new URL(rel, location.href).href; } catch { return rel; } };
   const toastMsg = (m, o) => { if (typeof toast === "function") toast(m, o); };
-  const hasArt = typeof Art !== "undefined";
+  const hasArt = typeof Art !== "undefined" && Art && typeof Art.campaign === "function";
   const dropNo = () => (S.drop && S.drop.number) || "01";
   const dropName = () => (S.drop && S.drop.name) || "";
   const nextNo = () => pad((parseInt(dropNo(), 10) || 1) + 1);
   const groupOf = p => (CATS.find(c => c.id === p.category) || {}).group || "";
   const tags = p => p.tags || [];
+  const sty = p => p.style || {};
+  const listWords = a => a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const onMobileChange = fn => { if (MOBILE.addEventListener) MOBILE.addEventListener("change", fn); else if (MOBILE.addListener) MOBILE.addListener(fn); };
 
   const wa = text => {
     if (typeof waLink === "function") { try { return waLink(text); } catch { /* fall through */ } }
@@ -44,6 +51,10 @@
     const l = S.drop && S.drop.launch ? new Date(S.drop.launch) : null;
     const ms = l && !isNaN(l) ? l - Date.now() : 0;
     return { live: ms <= 0, launch: l, msLeft: Math.max(0, ms) };
+  };
+  const buyable = p => {
+    if (typeof isBuyable === "function") { try { return !!isBuyable(p); } catch { /* fall through */ } }
+    return drop().live && (p.stock | 0) > 0;
   };
   const mixOn = () => {
     if (typeof mixMatchOn === "function") { try { return !!mixMatchOn(); } catch { /* fall through */ } }
@@ -63,21 +74,46 @@
     return "@" + (m ? m[1] : String(S.name || "bhakshi").toLowerCase());
   };
 
+  /* ---------- fabric facts, read from the product data (never invented) ---------- */
+  const gsmOf = p => { const m = String(p.fabric || "").match(/(\d{3})\s*GSM/i); return m ? +m[1] : 0; };
+  const range = (nums, sep = "–") => { const a = nums.filter(n => n > 0); if (!a.length) return ""; const lo = Math.min(...a), hi = Math.max(...a); return lo === hi ? String(lo) : `${lo}${sep}${hi}`; };
+  const KNIT_WORDS = [["piqu", "piqué"], ["waffle", "waffle"], ["rib", "rib"], ["jersey", "jersey"]];
+  const knitsOf = list => KNIT_WORDS.filter(([k]) => list.some(p => new RegExp(k, "i").test((p.fabric || "") + " " + (sty(p).knit || "")))).map(([, w]) => w);
+
   /* ---------- imagery ---------- */
   function garment(p, view = "front") {
     const imgs = p.images || [];
     const src = view === "back" ? (imgs[1] || imgs[0]) : imgs[0];
     if (src) return `<img src="${E(src)}" alt="${E(title(p))}" loading="lazy" decoding="async">`;
-    if (typeof productImage === "function") { try { return productImage(p, 0, view); } catch { /* fall through */ } }
+    if (typeof productImage === "function") { try { return productImage(p, view === "detail" ? 2 : 0, view); } catch { /* fall through */ } }
     if (hasArt && typeof Art.garment === "function") { try { return Art.garment(p, { view }); } catch (e) { console.warn("[home] Art.garment", e); } }
     return `<span class="hm-noart" style="background:${E(p.color)}"></span>`;
   }
 
-  /* Used only if neither campaignImage() nor Art.campaign() exist yet: a calm flat-lay of the tees. */
+  /* Used only if neither campaignImage() nor Art.campaign() exist: a calm row of the pieces. */
   function fallbackScene(scene, ratio) {
-    const id = String(scene || "").startsWith("single:") ? scene.slice(7) : "";
+    const id = /^(single|look|detail):/.test(scene || "") ? scene.split(":")[1] : "";
     const list = id ? ALL.filter(p => p.id === id) : ALL.slice(0, scene === "macro" ? 1 : 5);
-    return `<div class="hm-fallback" data-ratio="${E(ratio)}">${list.map(p => `<span>${garment(p, scene === "macro" ? "back" : "front")}</span>`).join("")}</div>`;
+    return `<div class="hm-fallback" data-ratio="${E(ratio)}">${list.map(p => `<span>${garment(p, scene === "macro" ? "detail" : "front")}</span>`).join("")}</div>`;
+  }
+
+  /* Does Art know this scene yet? Unknown scenes come back as the default flat-lay,
+     so compare labels (or use Art.SCENES if the Art agent publishes one). */
+  let flatLabel;
+  const labelOf = svg => (String(svg).match(/aria-label="([^"]*)"/) || [])[1] || "";
+  function artScene(name, ratio) {
+    if (!hasArt) return "";
+    try {
+      const base = String(name).split(":")[0], known = Art.SCENES || Art.scenes;
+      if (Array.isArray(known) && !known.some(s => String(s).split(":")[0] === base)) return "";
+      const svg = String(Art.campaign(name, { ratio }) || "");
+      if (!svg) return "";
+      if (!Array.isArray(known) && base !== "flatlay") {
+        if (flatLabel === undefined) flatLabel = labelOf(Art.campaign("flatlay", { ratio: "1:1" }));
+        if (flatLabel && labelOf(svg) === flatLabel) return "";
+      }
+      return svg;
+    } catch (e) { console.warn("[home] Art.campaign " + name, e); return ""; }
   }
 
   /* Big campaign image: owner photo for the slot, else the drawn Art.campaign scene. */
@@ -86,26 +122,31 @@
     let html = "";
     if (slot && typeof campaignImage === "function") { try { html = campaignImage(slot, o) || ""; } catch (e) { console.warn("[home] campaignImage", e); } }
     if (!html && slot && C[slot]) html = `<img src="${E(C[slot])}" alt="${E(o.alt)}" loading="lazy" decoding="async">`;
-    if (!html && hasArt && typeof Art.campaign === "function") { try { html = Art.campaign(o.scene, { ratio: o.ratio }) || ""; } catch (e) { console.warn("[home] Art.campaign", e); } }
+    if (!html && hasArt) { try { html = Art.campaign(o.scene, { ratio: o.ratio }) || ""; } catch (e) { console.warn("[home] Art.campaign", e); } }
     if (!html) html = fallbackScene(o.scene, o.ratio);
     return html;
+  }
+  /* Make an inlined SVG cover its box and carry the right label. */
+  function fitSvg(el, alt) {
+    const svg = el && (el.firstElementChild && el.firstElementChild.tagName.toLowerCase() === "svg" ? el.firstElementChild : qs(":scope > svg, :scope > * > svg", el));
+    if (!svg) return;
+    svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
+    svg.setAttribute("width", "100%"); svg.setAttribute("height", "100%");
+    if (alt) { svg.setAttribute("role", "img"); svg.setAttribute("aria-label", alt); }
+    else if (alt === "") { svg.removeAttribute("role"); svg.removeAttribute("aria-label"); svg.setAttribute("aria-hidden", "true"); }
   }
   /* Fill a box with a campaign image and make it cover the box at any aspect ratio. */
   function mount(el, html, { alt = "", eager = false } = {}) {
     if (!el) return;
     el.innerHTML = html;
-    const img = qs("img", el), svg = el.firstElementChild && el.firstElementChild.tagName.toLowerCase() === "svg" ? el.firstElementChild : qs(":scope > svg, :scope > * > svg", el);
+    const img = qs("img", el);
     if (img) {
       if (alt && !img.getAttribute("alt")) img.alt = alt;
       if (eager) { img.loading = "eager"; img.setAttribute("fetchpriority", "high"); }
       el.dataset.kind = "photo";
     } else {
       el.dataset.kind = "art";
-      if (svg) {
-        svg.setAttribute("preserveAspectRatio", "xMidYMid slice");
-        svg.setAttribute("width", "100%"); svg.setAttribute("height", "100%");
-        if (alt) { svg.setAttribute("role", "img"); svg.setAttribute("aria-label", alt); } else svg.setAttribute("aria-hidden", "true");
-      }
+      fitSvg(el, alt || "");
     }
   }
 
@@ -130,7 +171,6 @@
         const W = 96, H = Math.max(1, Math.round(W * r.height / r.width));
         const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
         const cx = cv.getContext("2d", { willReadFrequently: true });
-        // emulate object-fit: cover / xMidYMid slice
         const iw = im.naturalWidth || 1600, ih = im.naturalHeight || 900;
         const sc = Math.max(W / iw, H / ih), dw = iw * sc, dh = ih * sc;
         cx.drawImage(im, (W - dw) / 2, (H - dh) / 2, dw, dh);
@@ -150,8 +190,22 @@
     return (fresh.length ? fresh : ALL.slice()).slice(0, 12);
   })();
   const N = DROP.length;
-  const noun = DROP.every(p => p.shape === "tee") ? (N === 1 ? "tee" : "tees") : (N === 1 ? "piece" : "pieces");
+  const COLLARED = ["polo", "rugby", "knitpolo"];
+  const collared = DROP.length && DROP.every(p => COLLARED.includes(p.shape));
+  const noun = collared ? "collared classics" : DROP.every(p => p.shape === "tee") ? "tees" : "pieces";
   const numWord = n => ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"][n] || String(n);
+  const runs = () => range(ALL.map(p => +p.edition), " to ");
+
+  /* style families — used by "Shop by style"; same tests as the Shop page's look= filter (js/shop.js) */
+  const LOOKS = [
+    { id: "stripes", label: "Rugby stripes", line: "Yarn-dyed bands and pinstripes",
+      test: p => !!sty(p).stripes, score: p => (sty(p).stripes || {}).width || 0 },
+    { id: "script", label: "Script polos", line: "Raised and embroidered lettering",
+      test: p => (sty(p).graphic || {}).kind === "script", score: p => (sty(p).graphic || {}).size === "large" ? 2 : 1 },
+    { id: "knit", label: "Knits", line: "Waffle and rib, made for cooler days",
+      test: p => p.shape === "knitpolo" || ["rib", "waffle"].includes(sty(p).knit),
+      score: p => (p.shape === "knitpolo" ? 2 : 0) + (sty(p).sleeve === "long" ? 1 : 0) }
+  ];
 
   /* ======================================================
      QUICK LINKS
@@ -171,7 +225,6 @@
           if (row) {
             const mk = ([t, h]) => { const a = document.createElement("a"); a.className = "cat-link"; a.href = h; a.textContent = t; return a; };
             extra.filter(x => x[2] === "start").reverse().forEach(x => row.prepend(mk(x)));
-            // "All" goes last so the row reads New in · T-Shirts · Best sellers · All
             extra.filter(x => x[2] === "end").forEach(x => row.append(mk(x)));
             if (all && /^all$/i.test(all.textContent.trim())) { all.textContent = "Shop all"; row.append(all); }
             nav.classList.add("is-shell");
@@ -197,15 +250,15 @@
     const slot = m ? (C.heroMobile || !C.hero ? "heroMobile" : "hero") : "hero";
     const alt = `${S.name} Drop ${dropNo()}${dropName() ? " — " + dropName() : ""}`;
     const photo = !!C[slot];
-    // phone + drawn scene: a square crop, copy below; phone + photo: tall 4:5 with copy over it
-    mount(box, campaign(slot, { scene: "rail", ratio: m ? (photo ? "4:5" : "1:1") : "16:9", alt, eager: true }), { alt, eager: true });
+    // owner photo: full-bleed with the copy over it (tone sampled).
+    // drawn scene: the copy sits in a clean band under the image, so it never fights the artwork.
+    const ratio = m ? (photo || drop().live ? "4:5" : "1:1") : photo ? "16:9" : "21:9";
+    mount(box, campaign(slot, { scene: m ? "flatlay" : "rail", ratio, alt, eager: true }), { alt, eager: true });
     hero.dataset.kind = box.dataset.kind;
     hero.dataset.tone = "dark";
-    // drawn scenes fill the frame on a phone, so the copy moves below the image there (black on white)
-    const below = m && !photo && box.dataset.kind !== "photo";
+    const below = !photo && box.dataset.kind !== "photo";
     hero.classList.toggle("is-below", below);
     if (below) return;
-    // copy sits in a low band across the bottom on desktop, bottom-left on mobile photos
     sampleTone(box, hero, (W, H) => m ? [0, Math.round(H * 0.55), W, H] : [0, Math.round(H * 0.7), W, H]);
   }
 
@@ -258,6 +311,18 @@
     input.addEventListener("input", () => { if (input.value.trim()) { err.textContent = ""; input.removeAttribute("aria-invalid"); } });
   }
 
+  function heroLine() {
+    if (!N) return "Collared classics, made in small runs in India.";
+    if (collared) {
+      const kinds = [];
+      if (DROP.some(p => /piqu/i.test(p.fabric || "") || sty(p).knit === "pique")) kinds.push("piqué polos");
+      if (DROP.some(LOOKS[0].test)) kinds.push("rugby stripes");
+      if (DROP.some(LOOKS[2].test)) kinds.push("knits");
+      return `${numWord(N)} collared classics${kinds.length ? " — " + listWords(kinds) : ""}, made in small runs.`;
+    }
+    return `${numWord(N)} ${noun}, made in small runs in India.`;
+  }
+
   function initHero() {
     const hero = qs("#hero"); if (!hero) return;
     const d = drop(), no = dropNo(), name = dropName();
@@ -265,14 +330,15 @@
     qs("[data-hero-title]", hero).textContent = name || `Drop ${no}`;
     const allGone = N && DROP.every(p => (p.stock | 0) <= 0);
     const line = qs("[data-hero-line]", hero), ctas = qs("#heroCtas");
-    if (N) line.textContent = `${numWord(N)} heavyweight ${noun}, printed by hand in small runs.`;
+    line.textContent = heroLine();
+    const shop = qs("[data-hero-shop]", hero); if (shop) shop.href = "shop.html";
 
     if (!d.live) {
       hero.classList.add("is-soon");
-      line.textContent = N ? `${numWord(N)} heavyweight ${noun}, printed by hand. Buying opens at launch.` : "Buying opens at launch.";
+      line.textContent = `${heroLine().replace(/\.$/, "")}. Buying opens at launch.`;
       runCountdown(d.launch);
       ctas.innerHTML = `<button class="btn hm-btn" type="button" data-notify>Notify me</button>
-        <a class="btn btn-outline hm-btn hm-btn-ghost" href="shop.html">Preview the drop</a>`;
+        <a class="btn btn-outline hm-btn hm-btn-ghost" href="shop.html">Preview the edit</a>`;
     } else if (allGone) {
       line.textContent = "All sold out — thank you. The next drop is on its way.";
       ctas.innerHTML = `<a class="btn hm-btn" href="#first">Be first for Drop ${nextNo()}</a>`;
@@ -280,87 +346,221 @@
     hero.addEventListener("click", e => { if (e.target.closest("[data-notify]")) openNotify(); });
 
     renderHeroMedia();
-    const onMq = () => renderHeroMedia();
-    if (MOBILE.addEventListener) MOBILE.addEventListener("change", onMq); else if (MOBILE.addListener) MOBILE.addListener(onMq);
+    onMobileChange(renderHeroMedia);
   }
 
   /* ======================================================
-     DROP ROW
+     THE CLUB EDIT — the drop row
      ====================================================== */
-  function initDrop() {
-    const sec = qs("#drop"), rail = qs("#dropRail"); if (!rail) return;
+  function initEdit() {
+    const sec = qs("#edit"), rail = qs("#editRail"); if (!rail) return;
     if (!N) { sec.hidden = true; return; }
-    qs("[data-drop-title]", sec).textContent = `Drop ${dropNo()}${dropName() ? " — " + dropName() : ""}`;
-    rail.style.setProperty("--n", Math.min(N, 5));
-    rail.classList.toggle("is-fit", N <= 5);
+    qs("[data-edit-title]", sec).textContent = dropName() || `Drop ${dropNo()}`;
+    qs("[data-edit-kicker]", sec).textContent = `Drop ${dropNo()} · ${plural(N, "style")}`;
+    const r = runs();
+    qs("[data-edit-note]", sec).textContent = r ? `${r} pieces a style. No restocks.` : "Small runs. No restocks.";
+    rail.style.setProperty("--n", N);
+    rail.classList.toggle("is-six", N === 6);
+    rail.classList.toggle("is-fit", N <= 6);
     rail.innerHTML = DROP.map(p => `<div class="hm-cell" role="listitem">${card(p)}</div>`).join("");
   }
 
   /* ======================================================
-     CAMPAIGN BANNER
+     SHOP BY STYLE — stripes / script / knits, or categories once there are 2+
      ====================================================== */
-  function renderBanner() {
-    const box = qs("#bannerMedia"); if (!box) return;
-    const m = MOBILE.matches;
-    mount(box, campaign("banner", { scene: "flatlay", ratio: m ? "4:5" : "21:9", alt: `${S.name} — the drop, laid out` }));
-  }
-  function initBanner() {
-    renderBanner();
-    const onMq = () => renderBanner();
-    if (MOBILE.addEventListener) MOBILE.addEventListener("change", onMq);
-  }
-
-  /* ======================================================
-     THREE TILES — craft (one category) or categories (two+)
-     ====================================================== */
-  const TECH_ORDER = ["Screen print", "Hand embroidery", "Hand painted", "Puff print", "Block print", "Embroidery", "Applique"];
-  const TECH_LABEL = {
-    "screen print": "Screen printed", "hand embroidery": "Hand embroidered", "embroidery": "Embroidered",
-    "hand painted": "Hand painted", "puff print": "Puff printed", "block print": "Block printed", "applique": "Appliqué"
-  };
-  function tileImage(p, used) {
+  function tileImage(p, used, ratio = "3:4") {
     used.add(p.id);
     if (p.images && p.images.length) return `<img src="${E(p.images[0])}" alt="" loading="lazy" decoding="async">`;
-    if (hasArt && typeof Art.campaign === "function") { try { const s = Art.campaign("single:" + p.id, { ratio: "3:4" }); if (s) return s; } catch { /* fall through */ } }
-    return garment(p, "back");
+    const s = artScene("single:" + p.id, ratio); if (s) return s;
+    return garment(p, "front");
   }
-  const pickFor = (list, used) => list.find(p => !used.has(p.id)) || list[0];
+  const pickFor = (list, used, score) => {
+    const ranked = score ? list.slice().sort((a, b) => score(b) - score(a)) : list;
+    return ranked.find(p => !used.has(p.id)) || ranked[0];
+  };
+  const USED = new Set(); // products already shown big (tiles) — looks try to show others
 
-  function initTiles() {
-    const sec = qs("#tiles"), grid = qs("#tileGrid"); if (!grid) return;
-    const used = new Set();
+  function initStyles() {
+    const sec = qs("#styles"), grid = qs("#tileGrid"); if (!grid) return;
     const cats = liveCats();
     let tiles = [];
     if (cats.length > 1) {
-      qs("[data-tiles-title]", sec).textContent = "Shop by category";
+      qs("[data-styles-title]", sec).textContent = "Shop by category";
       const ranked = cats.map(c => ({ c, list: ALL.filter(p => p.category === c.id) }))
         .sort((a, b) => b.list.length - a.list.length).slice(0, 3);
-      tiles = ranked.map(({ c, list }) => {
-        const p = pickFor(list, used);
-        return { label: c.name, sub: `${list.length} ${list.length === 1 ? "style" : "styles"}`, href: `shop.html?cat=${encodeURIComponent(c.id)}`, art: tileImage(p, used) };
-      });
+      tiles = ranked.map(({ c, list }) => ({ label: c.name, line: "", n: list.length, href: `shop.html?cat=${encodeURIComponent(c.id)}`, art: tileImage(pickFor(list, USED), USED) }));
     } else {
-      const counts = new Map();
-      ALL.forEach(p => (p.techniques || []).forEach(t => counts.set(t, (counts.get(t) || 0) + 1)));
-      const rank = t => { const i = TECH_ORDER.findIndex(x => x.toLowerCase() === t.toLowerCase()); return i < 0 ? 99 : i; };
-      const techs = [...counts.keys()].sort((a, b) => rank(a) - rank(b) || counts.get(b) - counts.get(a)).slice(0, 3);
-      // give the rarest technique first pick so every tile shows a different tee
-      const byRarity = techs.slice().sort((a, b) => counts.get(a) - counts.get(b));
+      const groups = LOOKS.map(g => ({ g, list: ALL.filter(g.test) })).filter(x => x.list.length);
+      // rarest family picks first so every tile shows a different piece
       const art = {};
-      byRarity.forEach(t => { const p = pickFor(ALL.filter(x => (x.techniques || []).includes(t)), used); art[t] = tileImage(p, used); });
-      tiles = techs.map(t => ({
-        label: TECH_LABEL[t.toLowerCase()] || t,
-        sub: `${counts.get(t)} ${counts.get(t) === 1 ? "style" : "styles"}`,
-        href: `shop.html?tech=${encodeURIComponent(t)}`, art: art[t]
-      }));
+      groups.slice().sort((a, b) => a.list.length - b.list.length).forEach(({ g, list }) => { art[g.id] = tileImage(pickFor(list, USED, g.score), USED); });
+      tiles = groups.map(({ g, list }) => ({ label: g.label, line: g.line, n: list.length, href: `shop.html?look=${g.id}`, art: art[g.id] }));
     }
     if (!tiles.length) { sec.hidden = true; return; }
     grid.style.setProperty("--n", tiles.length);
     grid.innerHTML = tiles.map(t => `<a class="hm-tile" href="${t.href}">
-        <span class="hm-tile-media" aria-hidden="true">${t.art}</span>
-        <span class="hm-tile-cap"><span class="hm-tile-name">${E(t.label)}</span><span class="hm-tile-sub">${E(t.sub)}</span></span>
+        <span class="hm-tile-media" aria-hidden="true">${t.art}<span class="hm-tile-count">${E(plural(t.n, "style"))}</span></span>
+        <span class="hm-tile-cap">
+          <span class="hm-tile-text"><span class="hm-tile-name">${E(t.label)}</span>${t.line ? `<span class="hm-tile-sub">${E(t.line)}</span>` : ""}</span>
+          <span class="hm-tile-go">Shop<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        </span>
       </a>`).join("");
-    qsa(".hm-tile-media", grid).forEach(m => { const s = qs(":scope > svg", m); if (s) { s.setAttribute("preserveAspectRatio", "xMidYMid slice"); s.setAttribute("width", "100%"); s.setAttribute("height", "100%"); } });
+    qsa(".hm-tile-media", grid).forEach(m => fitSvg(m, ""));
+  }
+
+  /* ======================================================
+     SHOP THE LOOK — styled flat-lays with one hotspot each
+     ====================================================== */
+  function hotspot(id, ratio, real) {
+    let h = null;
+    if (real && hasArt && typeof Art.lookHotspot === "function") { try { h = Art.lookHotspot(id, ratio); } catch (e) { console.warn("[home] lookHotspot", e); } }
+    let x, y;
+    if (Array.isArray(h)) [x, y] = h;
+    else if (h && typeof h === "object") { x = h.x ?? h.left; y = h.y ?? h.top; }
+    x = parseFloat(x); y = parseFloat(y);
+    if (!isFinite(x) || !isFinite(y)) return { x: 50, y: 36 };
+    if (x <= 1 && y <= 1) { x *= 100; y *= 100; }
+    return { x: clamp(x, 8, 92), y: clamp(y, 8, 92) };
+  }
+
+  function initLooks() {
+    const sec = qs("#looks"), grid = qs("#lookGrid"); if (!grid) return;
+    const pool = DROP.filter(p => (p.stock | 0) > 0);
+    const fresh = pool.filter(p => !USED.has(p.id));
+    const picks = fresh.concat(pool.filter(p => USED.has(p.id))).slice(0, 3);
+    if (!picks.length) { sec.hidden = true; return; }
+    const ratio = "4:5";
+    grid.innerHTML = picks.map((p, i) => {
+      const photo = p.images && p.images[0];
+      let art = artScene("look:" + p.id, ratio), real = !!art;
+      if (!art) art = photo ? `<img src="${E(photo)}" alt="" loading="lazy" decoding="async">` : (artScene("single:" + p.id, ratio) || garment(p));
+      const h = hotspot(p.id, ratio, real), id = `lookPop${i + 1}`, name = title(p), buy = buyable(p);
+      // the scene's label names the props ("… styled with ecru trousers and white sneakers")
+      const props = real ? ((labelOf(art).match(/styled with (.+)$/i) || [])[1] || "") : "";
+      const withLine = props ? "Styled with: " + props.split(/\s+and\s+|,\s*/).join(", ") : "Wear it with light-wash denim and white sneakers";
+      const off = p.mrp > p.price;
+      return `<figure class="hm-look" role="listitem">
+        <div class="hm-look-media" data-look="${E(p.id)}">
+          <span class="hm-look-art" aria-hidden="true">${art}</span>
+          <button class="hm-hot" type="button" style="left:${h.x}%;top:${h.y}%" data-x="${h.x}" data-y="${h.y}" aria-expanded="false" aria-controls="${id}" aria-label="Show the ${E(name)}"><span aria-hidden="true"></span></button>
+          <div class="hm-pop" id="${id}" role="group" aria-label="${E(name)}" hidden>
+            <a class="hm-pop-img" href="${link(p)}" tabindex="-1" aria-hidden="true">${garment(p)}</a>
+            <div class="hm-pop-body">
+              <a class="hm-pop-name" href="${link(p)}">${E(name)}</a>
+              <span class="hm-pop-meta">${E(p.colorName || "")}</span>
+              <span class="hm-pop-price">${money(p.price)}${off ? ` <s>${money(p.mrp)}</s>` : ""}</span>
+              ${buy ? `<button class="hm-pop-add" type="button" data-quick="${E(p.id)}">Quick add</button>`
+                    : `<a class="hm-pop-add" href="${link(p)}">View</a>`}
+            </div>
+            <button class="hm-pop-x" type="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          </div>
+        </div>
+        <figcaption class="hm-look-cap">
+          <span class="hm-look-no">Look ${pad(i + 1)}</span>
+          <a class="hm-look-name" href="${link(p)}">${E(name)}</a>
+          <span class="hm-look-with">${E(withLine)}</span>
+          <span class="hm-look-avail">${buy ? "Polo available now" : (p.stock | 0) > 0 ? "Polo opens at launch" : "Polo sold out"} · ${money(p.price)}</span>
+        </figcaption>
+      </figure>`;
+    }).join("");
+    qsa(".hm-look-art", grid).forEach(m => fitSvg(m, ""));
+
+    let open = null;
+    const place = (btn, pop) => {
+      const box = btn.parentElement, W = box.clientWidth, H = box.clientHeight;
+      const x = +btn.dataset.x / 100 * W, y = +btn.dataset.y / 100 * H;
+      const pw = Math.min(268, W - 24);
+      pop.style.width = pw + "px";
+      pop.style.left = clamp(x - pw / 2, 12, W - pw - 12) + "px";
+      const ph = pop.offsetHeight || 120;
+      const below = y + 28 + ph <= H - 12 || y < H / 2;
+      pop.style.top = (below ? clamp(y + 28, 12, H - ph - 12) : clamp(y - 28 - ph, 12, H - ph - 12)) + "px";
+      pop.classList.toggle("is-up", !below);
+    };
+    const close = (focus) => {
+      if (!open) return;
+      const { btn, pop } = open; open = null;
+      btn.setAttribute("aria-expanded", "false"); pop.hidden = true;
+      btn.closest(".hm-look").classList.remove("is-open");
+      if (focus) btn.focus({ preventScroll: true });
+    };
+    const show = btn => {
+      const pop = qs("#" + btn.getAttribute("aria-controls"));
+      if (open && open.btn === btn) { close(true); return; }
+      close();
+      pop.hidden = false; btn.setAttribute("aria-expanded", "true");
+      btn.closest(".hm-look").classList.add("is-open");
+      place(btn, pop); open = { btn, pop };
+    };
+    grid.addEventListener("click", e => {
+      const h = e.target.closest(".hm-hot"); if (h) { e.preventDefault(); show(h); return; }
+      if (e.target.closest(".hm-pop-x")) { close(true); return; }
+      if (e.target.closest("[data-quick]")) { setTimeout(() => close(), 0); return; }
+      // a tap on the picture (not the card) toggles its hotspot too — easier on a phone
+      const art = e.target.closest(".hm-look-art");
+      if (art) { const b = qs(".hm-hot", art.parentElement); if (b) show(b); }
+    });
+    document.addEventListener("click", e => { if (open && !e.target.closest(".hm-look-media")) close(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && open) close(true); });
+    addEventListener("resize", () => { if (open) place(open.btn, open.pop); });
+    grid.addEventListener("scroll", () => close(), { passive: true });
+  }
+
+  /* ======================================================
+     THE DETAILS — four close-ups
+     ====================================================== */
+  function initDetails() {
+    const sec = qs("#details"), grid = qs("#detailGrid"); if (!grid) return;
+    if (!ALL.length) { sec.hidden = true; return; }
+    const knits = knitsOf(ALL).filter(k => k !== "jersey");
+    const by = (fn, avoid) => ALL.filter(fn).find(p => !avoid.has(p.id)) || ALL.find(fn);
+    const taken = new Set();
+    const plan = [
+      { part: "collar", t: "Collars that keep their shape", d: "Contrast and twill collars that sit flat, wash after wash.",
+        f: p => /collar/i.test((p.techniques || []).join(" ")) && sty(p).sleeve === "long" },
+      { part: "placket", t: "A neat two-button placket", d: "Stitched flat, with sleeves tipped in contrast.",
+        f: p => (sty(p).tipping || []).length && sty(p).placket === "button" && !/puff/i.test((p.techniques || []).join(" ")) },
+      { part: "knit", t: "Real knit texture", d: `${knits.length ? listWords(knits.map((k, i) => i ? k : k[0].toUpperCase() + k.slice(1))) : "Knit"} you can feel at your fingertips.`,
+        f: p => /waffle|rib/i.test(sty(p).knit || "") },
+      { part: "graphic", t: "Raised script", d: "Puff print and embroidery that sit up off the cloth.",
+        f: p => (sty(p).graphic || {}).kind === "script" && /puff|embroider/i.test((p.techniques || []).join(" ")) }
+    ];
+    const items = plan.map(x => {
+      const p = by(x.f, taken) || ALL.find(q => !taken.has(q.id)) || ALL[0];
+      taken.add(p.id);
+      const photo = p.images && p.images[2];
+      const art = photo ? `<img src="${E(photo)}" alt="" loading="lazy" decoding="async">`
+        : (artScene(`detail:${p.id}:${x.part}`, "1:1") || garment(p, "detail"));
+      return { ...x, p, art };
+    });
+    grid.innerHTML = items.map((x, i) => `<figure class="hm-detail" role="listitem">
+        <a class="hm-detail-media" href="${link(x.p)}" tabindex="-1" aria-hidden="true">${x.art}</a>
+        <figcaption>
+          <span class="hm-detail-no">${pad(i + 1)}</span>
+          <span class="hm-detail-t">${E(x.t)}</span>
+          <span class="hm-detail-d">${E(x.d)} <a href="${link(x.p)}" class="hm-detail-on">${E(title(x.p))}</a></span>
+        </figcaption>
+      </figure>`).join("");
+    qsa(".hm-detail-media", grid).forEach(m => fitSvg(m, ""));
+  }
+
+  /* ======================================================
+     WHY BHAKSHI — facts from the data + service line
+     ====================================================== */
+  function initWhy() {
+    const g = range(ALL.map(gsmOf)), k = knitsOf(ALL);
+    const gsm = qs("[data-why-gsm]");
+    if (gsm && g) gsm.textContent = `${g} GSM ${k.length ? listWords(k) + " " : "cotton "}that keeps its shape.`;
+    const r = runs(), el = qs("[data-why-runs]");
+    if (el && r) el.textContent = `${r} pieces a style. When it’s gone, it’s gone.`;
+    const svc = qs("[data-service]");
+    if (svc) {
+      const bits = [];
+      if (S.freeShippingAbove > 0) bits.push(`Free shipping above ${moneyShort(S.freeShippingAbove)}`);
+      if (S.codFee !== -1) bits.push("Cash on Delivery");
+      bits.push("7-day size exchange");
+      svc.innerHTML = bits.map(b => `<span>${E(b)}</span>`).join("");
+    }
   }
 
   /* ======================================================
@@ -370,7 +570,6 @@
     const sec = qs("#best"), rail = qs("#bestRail"); if (!rail) return;
     const best = ALL.filter(p => tags(p).includes("bestseller"));
     const sold = p => p.edition > 0 ? 1 - (p.stock | 0) / p.edition : 0;
-    // fewer than four tagged? fill the row with the rest of the range, most-sold first
     const list = best.length >= 4 ? best : best.concat(ALL.filter(p => !best.includes(p)).sort((a, b) => sold(b) - sold(a)));
     if (!list.length) { sec.hidden = true; return; }
     if (best.length < 4) { const l = qs("[data-best-link]", sec); if (l) l.href = "shop.html"; }
@@ -391,6 +590,20 @@
     rail.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
     addEventListener("resize", update);
     update();
+  }
+
+  /* ======================================================
+     FIT BAND — copy follows the products' fit
+     ====================================================== */
+  function initFit() {
+    const sec = qs("#fit"); if (!sec) return;
+    const tops = ALL.filter(p => !["pants", "shorts"].includes(p.shape));
+    if (!tops.length) { sec.hidden = true; return; }
+    const over = tops.filter(p => /oversize/i.test(p.fit || "")).length > tops.length / 2;
+    if (over) {
+      qs("#fit-title").textContent = "Oversized on purpose.";
+      qs(".hm-fit-lead", sec).textContent = "Take your usual size for the drape, or size down for a closer fit.";
+    }
   }
 
   /* ======================================================
@@ -418,18 +631,23 @@
      STORY + FIRST ACCESS
      ====================================================== */
   function initStory() {
-    mount(qs("#storyMedia"), campaign("story", { scene: "macro", ratio: "4:5", alt: "Close-up of a hand-pulled print on heavyweight cotton" }), { alt: "Close-up of a hand-pulled print on heavyweight cotton" });
-    const runs = ALL.map(p => +p.edition).filter(n => n > 0);
-    const el = qs("[data-story-runs]");
-    if (el && runs.length) {
-      const lo = Math.min(...runs), hi = Math.max(...runs);
-      const hand = ALL.some(p => (p.techniques || []).some(t => /embroider|paint/i.test(t)));
-      el.textContent = `Each print is pulled by hand, one screen and one colour at a time${hand ? ", and some are finished with a needle or a brush" : ""}. Every design is made in a numbered run of ${lo === hi ? lo : `${lo} to ${hi}`} pieces — when it’s gone, it’s gone.`;
+    const alt = "Close-up of cotton piqué and a contrast collar";
+    mount(qs("#storyMedia"), campaign("story", { scene: "macro", ratio: "4:5", alt }), { alt });
+    const specs = qs("[data-specs]"); if (!specs) return;
+    const pq = ALL.filter(p => /piqu/i.test(p.fabric || "")), heavy = ALL.filter(p => !/piqu/i.test(p.fabric || ""));
+    const rows = [];
+    if (pq.length) { const g = range(pq.map(gsmOf)); rows.push(["Piqué polos", `${g ? g + " GSM · " : ""}breathable`]); }
+    if (heavy.length) {
+      const hi = Math.max(0, ...heavy.map(gsmOf));
+      const kinds = [heavy.some(p => p.shape === "rugby" || /rugby/i.test(p.name)) && "Rugbys", heavy.some(p => /knit/i.test(p.fabric || "")) && "knits"].filter(Boolean);
+      rows.push([kinds.length ? listWords(kinds).replace(/^r/, "R") : "Heavyweights", `${hi ? "Up to " + hi + " GSM · " : ""}cool-weather weight`]);
     }
+    if (rows.length) specs.innerHTML = rows.map(([t, d]) => `<div><dt>${E(t)}</dt><dd>${E(d)}</dd></div>`).join("");
+    else specs.remove();
   }
 
   function initFirst() {
-    mount(qs("#newsMedia"), campaign("newsletter", { scene: "stack", ratio: "4:5", alt: "A folded stack of BHAKSHI tees" }), { alt: "A folded stack of BHAKSHI tees" });
+    mount(qs("#newsMedia"), campaign("newsletter", { scene: "stack", ratio: "4:5", alt: "A folded stack of BHAKSHI polos" }), { alt: "A folded stack of BHAKSHI polos" });
     const form = qs("#firstForm"); if (!form) return;
     const d = drop(), no = dropNo();
     const target = d.live ? nextNo() : no;
@@ -445,6 +663,49 @@
       toastMsg("Opening WhatsApp — just hit send.", { type: "success" });
     });
     input.addEventListener("input", () => { if (input.value.trim()) { err.textContent = ""; input.removeAttribute("aria-invalid"); } });
+  }
+
+  /* ======================================================
+     FAQ — answers follow STORE settings; also emitted as FAQPage JSON-LD
+     ====================================================== */
+  let FAQ = [];
+  function initFAQ() {
+    const list = qs("#faqList"); if (!list) return;
+    const cod = S.codFee, free = S.freeShippingAbove, fee = S.shippingFee, r = runs();
+    const pay = cod === -1 ? "UPI only for now — every order is prepaid, with no extra fee."
+      : `UPI, or Cash on Delivery${cod > 0 ? ` (a ${moneyShort(cod)} COD fee applies)` : " at no extra cost"}. UPI payments never carry a fee.`;
+    FAQ = [
+      { q: "How do I place an order?",
+        a: "Add your size to the bag and check out. Your order comes to us on WhatsApp with everything filled in — we confirm it with you there and dispatch within 1–2 business days." },
+      { q: "How can I pay?", a: pay },
+      { q: "How long does delivery take?",
+        a: `3–7 business days across India, depending on your pincode.${free > 0 ? ` Shipping is free above ${moneyShort(free)}${fee > 0 ? `; below that it’s a flat ${moneyShort(fee)}` : ""}.` : ""} We send the tracking link on WhatsApp.` },
+      { q: "Can I exchange my size?",
+        a: "Yes — within 7 days of delivery, unworn and unwashed with the tags on. Because every style is a small run, the swap depends on stock.",
+        html: ` <a href="policies.html#exchange">Exchange policy</a>` },
+      { q: "How do the polos fit?",
+        a: "Relaxed and true to size: easy through the chest, sitting at the hip. Between sizes? Size down for a neater line.",
+        html: ` <button type="button" class="hm-inline-btn" data-fitfinder>Find my size</button>` },
+      { q: "How should I care for piqué and knits?",
+        a: "Wash cold and inside out with similar colours. Dry knits flat in the shade — a wet knit hung on a line stretches. Iron on low, never directly over a script or puff print." },
+      { q: "Will a style come back?",
+        a: `No. Each style is made once, in a small run${r ? ` of ${r} pieces` : ""}, and we don’t restock. Join the first-access list to hear about the next drop.`,
+        html: ` <a href="#first">Join the list</a>` }
+    ];
+    list.innerHTML = FAQ.map((f, i) => `<details class="hm-q" id="faq-${i + 1}">
+        <summary><span>${E(f.q)}</span><i class="hm-q-ico" aria-hidden="true"></i></summary>
+        <div class="hm-q-a"><p>${E(f.a)}${f.html || ""}</p></div>
+      </details>`).join("");
+    // one open at a time keeps the list calm
+    list.addEventListener("click", e => {
+      const sm = e.target.closest("summary"); if (!sm) return;
+      const d = sm.parentElement; if (d.open) return;
+      qsa("details[open]", list).forEach(o => { if (o !== d) o.open = false; });
+    });
+    const help = qs("[data-faq-contact]");
+    if (help && String(S.whatsapp || "").replace(/\D/g, "").length >= 10) {
+      help.href = wa(`Hi ${S.name}! I have a question:`); help.target = "_blank"; help.rel = "noopener"; help.textContent = "Message us on WhatsApp";
+    }
   }
 
   /* ======================================================
@@ -529,7 +790,9 @@
      Restrained fade-up reveals (home blocks only)
      ====================================================== */
   function initReveal() {
-    const els = qsa(".hm-head, #dropRail .hm-cell, .hm-banner-cap, .hm-tile, #bestRail .hm-cell, .hm-worn-card, .hm-ig-in, .hm-split-in, .hm-split-media, .hm-studio-grid");
+    const els = qsa([".hm-head", "#editRail .hm-cell", ".hm-tile", ".hm-look", ".hm-detail", ".hm-why-item", ".hm-service",
+      "#bestRail .hm-cell", ".hm-fit-art", ".hm-fit-copy", ".hm-worn-card", ".hm-ig-in", ".hm-faq-a", ".hm-faq-list",
+      ".hm-split-in", ".hm-split-media", ".hm-studio-grid"].join(","));
     els.forEach(el => el.classList.add("hm-rv"));
     if (RM || !("IntersectionObserver" in window)) { els.forEach(el => el.classList.add("is-in")); return; }
     document.documentElement.classList.add("hm-js");
@@ -544,7 +807,7 @@
   }
 
   /* ======================================================
-     SEO — JSON-LD from STORE
+     SEO — JSON-LD from STORE (+ the FAQ)
      ====================================================== */
   function injectLD() {
     const prices = ALL.map(p => +p.price).filter(Boolean);
@@ -553,7 +816,7 @@
     const store = {
       "@context": "https://schema.org", "@type": "ClothingStore",
       name: S.name, url: home,
-      description: `${S.tagline || "Printed by hand. Made in India."} Heavyweight oversized graphic tees made in small numbered runs${dropName() ? ` — Drop ${dropNo()} “${dropName()}”` : ""}.`,
+      description: `${S.tagline || "Collared classics, made in India."} Cotton piqué polos, rugby shirts and knit polos with contrast collars, made in small runs${dropName() ? ` — Drop ${dropNo()} “${dropName()}”` : ""}.`,
       image: home + "images/og.png", logo: home + "images/favicon.svg",
       email: S.email || undefined,
       telephone: S.whatsapp ? "+" + String(S.whatsapp).replace(/\D/g, "") : undefined,
@@ -572,13 +835,39 @@
         }))
       }
     };
-    const s = document.createElement("script"); s.type = "application/ld+json";
-    s.textContent = JSON.stringify(store); document.head.appendChild(s);
+    const add = obj => { const s = document.createElement("script"); s.type = "application/ld+json"; s.textContent = JSON.stringify(obj); document.head.appendChild(s); };
+    add(store);
+    if (FAQ.length) add({
+      "@context": "https://schema.org", "@type": "FAQPage",
+      mainEntity: FAQ.map(f => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } }))
+    });
+  }
+
+  /* In-page links (#first …): render every section first so skipped (content-visibility) blocks
+     can't shift the landing point. */
+  function initJumps() {
+    const main = qs("main.hm"); if (!main) return;
+    main.addEventListener("click", e => {
+      const a = e.target.closest('a[href^="#"]'); if (!a || a.getAttribute("href").length < 2) return;
+      const t = document.getElementById(a.getAttribute("href").slice(1)); if (!t) return;
+      e.preventDefault();
+      main.classList.add("is-cv-off");
+      requestAnimationFrame(() => {
+        t.scrollIntoView({ behavior: RM ? "auto" : "smooth", block: "start" });
+        history.replaceState(null, "", "#" + t.id);
+        const f = t.querySelector("input, button, a"); if (f && t.id === "first") setTimeout(() => f.focus({ preventScroll: true }), RM ? 0 : 600);
+      });
+    });
+    if (location.hash && document.getElementById(location.hash.slice(1))) {
+      main.classList.add("is-cv-off");
+      requestAnimationFrame(() => { const t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); });
+    }
   }
 
   /* ---------- boot ---------- */
   function boot() {
-    const steps = [initQuick, initHero, initDrop, initBanner, initTiles, initBest, initWorn, initStory, initStudio, initFirst, injectLD, initReveal];
+    const steps = [initQuick, initHero, initEdit, initStyles, initLooks, initDetails, initWhy, initStory, initBest, initFit,
+      initWorn, initFAQ, initStudio, initFirst, injectLD, initReveal, initJumps];
     steps.forEach(fn => { try { fn(); } catch (err) { console.error("[home] " + fn.name, err); } });
     if (typeof refreshReveal === "function") { try { refreshReveal(); } catch { /* shell optional */ } } // also starts card countdowns
   }

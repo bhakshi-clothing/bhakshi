@@ -25,7 +25,7 @@ const productUrl = p => `product.html?id=${encodeURIComponent(p.id)}`;
 const titleOf = p => String(p.name).split(" — ")[0];
 const DROP = Object.assign({ number: "01", name: "", launch: null }, STORE.drop || {});
 const dropLabel = () => `Drop ${DROP.number}`;
-/* "Screen print +1" — first technique plus how many more ("" if none) */
+/* "Embroidery +1" — first technique plus how many more ("" if none) */
 function techLabel(p) {
   p = getProduct(p); const t = (p && Array.isArray(p.techniques) ? p.techniques : []).filter(Boolean);
   return t.length ? t[0] + (t.length > 1 ? ` +${t.length - 1}` : "") : "";
@@ -129,10 +129,11 @@ function campaignImage(slot, opts = {}) {
       if (svg) {
         const open = (svg.match(/<svg\b[^>]*>/) || [""])[0];
         if (open && alt) {
-          let add = "";
-          if (!/\brole=/.test(open)) add += ' role="img"';
-          if (!/\baria-label=/.test(open)) add += ` aria-label="${esc(alt)}"`;
-          if (add) svg = svg.replace(/<svg\b/, "<svg" + add);
+          let add = "", tag = open;
+          if (!/\brole=/.test(tag)) add += ' role="img"';
+          if (!/\baria-label=/.test(tag)) add += ` aria-label="${esc(alt)}"`;
+          else if (opts.alt != null) tag = tag.replace(/\baria-label="[^"]*"/, `aria-label="${esc(alt)}"`);   // caller's alt wins
+          const next = tag.replace(/<svg\b/, "<svg" + add); svg = svg.replace(open, () => next);
         }
         return svg;
       }
@@ -173,6 +174,10 @@ const ICON = {
   swap: _svg(`<path d="M6 12h19l-5-5M26 20H7l5 5"/>`, 26, 1.3, 32),
   fabric: _svg(`<path d="M4 7h24v18H4z"/><path d="M4 13h24M4 19h24M10 7v18M16 7v18M22 7v18" opacity=".55"/>`, 26, 1.3, 32),
   india: _svg(`<circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="3"/><path d="M16 5v8M16 19v8M5 16h8M19 16h8"/>`, 26, 1.3, 32),
+  svcShip: _svg(`<path d="M2.5 7h11.5v9.5H2.5zM14 10h3.6l3.4 3.6v2.9H14"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/>`, 22, 1.1),
+  svcCod: _svg(`<rect x="2.5" y="6.5" width="19" height="11"/><circle cx="12" cy="12" r="2.6"/><path d="M5.5 9.5v5M18.5 9.5v5"/>`, 22, 1.1),
+  svcSwap: _svg(`<path d="M4 9h14.5l-3.5-3.5M20 15H5.5L9 18.5"/>`, 22, 1.1),
+  svcPolo: _svg(`<path d="M8.6 3.5 4 5.8 2.5 10l3 1.2 1-2.2V20.5h11V9l1 2.2 3-1.2L20 5.8l-4.6-2.3"/><path d="M8.6 3.5 8 6.8l4 2.4 4-2.4-.6-3.3M8.6 3.5c1 .7 2.1 1 3.4 1s2.4-.3 3.4-1M11 8.6v4.4h2V8.6"/>`, 22, 1.1),
   truckSm: _svg(`<path d="M2.5 6.5h11v10h-11zM13.5 10h4l3 3.5v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>`, 18),
   mail: _svg(`<rect x="3" y="5.5" width="18" height="13"/><path d="m3.5 7 8.5 6 8.5-6"/>`, 18),
   insta: _svg(`<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6" fill="currentColor"/>`, 18),
@@ -412,7 +417,8 @@ function shopLinks() {
 }
 function megaHTML() {
   const groups = navGroups();
-  const best = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 1)[0];
+  const ranked = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 2);
+  const best = ranked[0], feature = ranked[1] || ranked[0];   // drop tile shows a second polo so the two tiles differ
   return `<div class="mega-inner container">
     <div class="mega-cols">
       <div class="mega-col"><p class="mega-head">Shop</p><ul>${shopLinks().map(([h, l]) => `<li><a href="${h}">${esc(l)}</a></li>`).join("")}</ul></div>
@@ -420,7 +426,7 @@ function megaHTML() {
       <div class="mega-col"><p class="mega-head">Help</p><ul><li><button type="button" data-fitfinder>Size guide</button></li><li><a href="policies.html#shipping">Shipping</a></li><li><a href="policies.html#exchange">Exchange &amp; returns</a></li></ul></div>
     </div>
     <div class="mega-tiles">
-      <a class="mega-tile" href="shop.html"><span class="mega-tile-media is-wide">${campaignImage("banner", { scene: "rail", ratio: "4:5", alt: `${dropLabel()}${DROP.name ? " — " + DROP.name : ""}` })}</span>
+      <a class="mega-tile" href="shop.html"><span class="mega-tile-media is-wide">${campaignImage("banner", { scene: feature ? "single:" + feature.id : "rail", ratio: "4:5", alt: `${dropLabel()}${DROP.name ? " — " + DROP.name : ""}${feature ? ": " + titleOf(feature) : ""}` })}</span>
         <span class="mega-tile-name">${esc(dropLabel())}${DROP.name ? " — " + esc(DROP.name) : ""}</span><span class="mega-tile-sub">Shop the drop</span></a>
       ${best ? `<a class="mega-tile" href="${productUrl(best)}"><span class="mega-tile-media">${productImage(best)}</span>
         <span class="mega-tile-name">${esc(titleOf(best))}</span><span class="mega-tile-sub">${rupee(best.price)}</span></a>` : ""}
@@ -543,12 +549,21 @@ function renderLayout() {
   if (main) main.insertAdjacentHTML("beforebegin", header); else body.insertAdjacentHTML("afterbegin", header);
 
   const year = new Date().getFullYear();
+  const freeAbove = +STORE.freeShippingAbove || 0;
+  const service = [
+    freeAbove ? [ICON.svcShip, `Free shipping above ${rupee(freeAbove).replace(/\.00$/, "")}`, "policies.html#shipping"] : null,
+    codOn() ? [ICON.svcCod, "Cash on Delivery", "policies.html#shipping"] : [ICON.svcCod, "Pay by UPI", "policies.html#shipping"],
+    [ICON.svcSwap, "7-day size exchange", "policies.html#exchange"],
+    [ICON.svcPolo, "Made in India", "about.html"]
+  ].filter(Boolean);
   const footer = `
   <footer class="site-footer">
+    <div class="service-strip"><ul class="container service-list" style="--svc-n:${service.length}" aria-label="Why shop with us">${service.map(([ic, label, href]) =>
+      `<li><a class="service-item" href="${href}">${ic}<span>${esc(label)}</span></a></li>`).join("")}</ul></div>
     <div class="container footer-top">
       <div class="footer-brand">
         <a class="brand" href="index.html" aria-label="${esc(STORE.name)} — home">${STAMP}<span class="wordmark">${esc(STORE.name)}</span></a>
-        <p>${esc(STORE.tagline || "Printed by hand. Made in India.")} Heavyweight tees made in small runs — when a drop sells out, it's gone.</p>
+        <p>${esc(STORE.tagline || "Collared classics, made in India.")} Piqué polos, rugby stripes and soft knits, made in small runs — when a drop sells out, it's gone.</p>
       </div>
       <nav class="footer-col" aria-label="Resources"><h3>Resources</h3>
         <a href="about.html">About</a><a href="contact.html">Contact</a><button type="button" data-fitfinder>Size guide</button><a href="contact.html#track">Track order</a></nav>
@@ -633,6 +648,9 @@ function initHeader() {
   setInterval(() => { if (!document.hidden) updateFloatOffset(); }, 800);
   const foot = $(".site-footer");
   if (foot && "IntersectionObserver" in window) new IntersectionObserver(([en]) => document.body.classList.toggle("footer-in", en.isIntersecting), { rootMargin: "0px 0px -30% 0px" }).observe(foot);
+  // keep the floating WhatsApp button off the home hero on phones (it covered the hero button)
+  const hero = document.getElementById("hero");
+  if (hero && "IntersectionObserver" in window) new IntersectionObserver(([en]) => document.body.classList.toggle("hero-in", en.isIntersecting), { threshold: .25 }).observe(hero);
 
   // Shop mega panel (hover intent, focus, click/tap, Esc)
   const li = $(".has-mega", header), trigger = li && $("a", li), panel = $("#mega-shop");
@@ -747,12 +765,15 @@ function searchProducts(q) {
   if (!tokens.length) return [];
   const out = [];
   PRODUCTS.forEach(p => {
-    const pr = p.print || {};
+    const pr = p.print || {}, sty = p.style || {}, gr = sty.graphic || {};
+    const collared = ["polo", "rugby", "knitpolo"].includes(p.shape);
     const f = {
-      name: _norm(p.name), cat: _norm(catName(p.category) + " " + groupOf(p) + " " + p.shape + (p.shape === "tee" ? " tshirt tee t shirt" : "")),
+      name: _norm(p.name), cat: _norm(catName(p.category) + " " + groupOf(p) + " " + p.shape + (p.shape === "tee" ? " tshirt tee t shirt" : "") + (collared ? " polo collar collared" : "")),
       color: _norm(p.colorName), tech: _norm((p.techniques || []).join(" ")),
       fabric: _norm((p.fabric || "") + " " + (p.fit || "") + " " + (pr.front || "") + " " + (pr.back || "")),
-      tags: _norm((p.tags || []).join(" ")), desc: _norm(p.desc)
+      tags: _norm((p.tags || []).join(" ")), desc: _norm(p.desc),
+      style: _norm([sty.knit, sty.placket, sty.sleeve ? sty.sleeve + " sleeve" : "", sty.stripes ? "stripe striped" : "", sty.tipping ? "tipped tipping" : "",
+        gr.kind, gr.kind === "script" ? "lettering" : "", gr.text].filter(Boolean).join(" "))
     };
     let score = 0;
     for (const t of tokens) {
@@ -762,6 +783,7 @@ function searchProducts(q) {
       if (f.color.includes(t)) s += 3;
       if (f.tech.includes(t)) s += 2.5;
       if (f.tags.includes(t)) s += 2;
+      if (f.style.includes(t)) s += 2;
       if (f.fabric.includes(t)) s += 1;
       if (!s && t.length > 2 && f.desc.includes(t)) s += .5;
       if (!s) return;
@@ -786,8 +808,11 @@ function highlight(text, q) {
   }
   return out + (open ? "</mark>" : "");
 }
+/* Popular search terms: the label's collared classics first (only ones that return something), then terms from the data */
+const POPULAR_TERMS = ["Rugby", "Stripe", "Knit", "Script", "Piqué", "Contrast collar"];
 function searchSuggestions() {
   const out = [], add = s => { s = String(s || "").trim(); if (s && !out.some(x => x.toLowerCase() === s.toLowerCase())) out.push(s); };
+  POPULAR_TERMS.forEach(t => { if (searchProducts(t).length) add(t); });
   [...new Set(PRODUCTS.map(p => p.fit).filter(Boolean))].forEach(add);
   liveCategories().forEach(c => add(c.name));
   PRODUCTS.forEach(p => (p.techniques || []).forEach(add));
@@ -810,7 +835,7 @@ function openSearch(prefill) {
   if (!tr.dataset.ready) {
     tr.innerHTML = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 4).map((p, i) => srTile(p, "t" + i)).join("");
     const sug = searchSuggestions();
-    $(".search-chips", o).innerHTML = sug.length ? `<span class="search-try">Try</span>${sug.map(s => `<button type="button" class="search-chip" data-search="${esc(s)}">${esc(s)}</button>`).join("")}` : "";
+    $(".search-chips", o).innerHTML = sug.length ? `<span class="search-try">Popular</span>${sug.map(s => `<button type="button" class="search-chip" data-search="${esc(s)}">${esc(s)}</button>`).join("")}` : "";
     tr.dataset.ready = "1";
   }
   o.inert = false; document.body.classList.add("search-open");

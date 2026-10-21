@@ -290,6 +290,8 @@ a.ck-line-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ck-next-steps li::before { content: counter(s, decimal-leading-zero); position: absolute; left: 0; top: 12px; font-size: 12px; letter-spacing: .1em; color: var(--muted); }
 .ck-next-steps li:first-child::before { top: 6px; }
 .ck-next-steps span { font-size: 13.5px; }
+.ck-next-steps span a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.ck-next-steps span a:hover { text-decoration-color: currentColor; }
 .ck-success-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; margin-top: 24px; }
 .ck-success-cta .btn { flex: 1 1 100%; }
 .ck-sum-title { margin: 0 0 18px; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: .14em; }
@@ -340,32 +342,34 @@ a.ck-line-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 .pg-split { display: grid; gap: 28px; align-items: center; }
 .pg-split-media { margin: 0; }
 
-/* about: techniques */
-.pg-tech { display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line); }
-.pg-tech-item { padding: 24px 0; border-bottom: 1px solid var(--line); }
-.pg-tech-item h3 { margin: 10px 0 8px; font-size: 16px; font-weight: 500; letter-spacing: .02em; }
-.pg-tech-item p { margin: 0; font-size: 14.5px; line-height: 1.7; color: var(--text-2); }
-.pg-tech-item .pg-tech-on { margin-top: 12px; font-size: 13px; color: var(--muted); }
-.pg-tech-on a { color: var(--text-2); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
-.pg-tech-on a:hover { color: var(--text); text-decoration-color: currentColor; }
+/* about: how a polo is made (3 steps, drawn line icons) */
 .pg-step-no { display: block; font-size: 12px; letter-spacing: .12em; color: var(--muted); }
-
-/* about: drop steps */
 .pg-band { background: var(--surface); border-top: 0; }
-.pg-steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line-2); }
-.pg-steps li { padding: 22px 0; border-bottom: 1px solid var(--line-2); }
-.pg-steps h3 { margin: 10px 0 8px; font-size: 16px; font-weight: 500; letter-spacing: .02em; }
-.pg-steps p { margin: 0; font-size: 14.5px; line-height: 1.7; color: var(--text-2); }
+.pg-make { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr; border-top: 1px solid var(--line-2); }
+.pg-make li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 20px; padding: 26px 0; border-bottom: 1px solid var(--line-2); }
+.pg-make-icon { display: block; grid-row: span 4; width: 52px; height: 52px; color: var(--text); }
+.pg-make-icon svg { width: 100%; height: 100%; display: block; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
+.pg-make h3 { margin: 6px 0 6px; font-size: 16px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.pg-make p { margin: 0; font-size: 14.5px; line-height: 1.7; color: var(--text-2); max-width: 46ch; }
+.pg-make .pg-make-on { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.pg-make-arrow { display: none; }
 
-/* about: tee row */
-.pg-tees { display: grid; grid-auto-flow: column; grid-auto-columns: 44%; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; scrollbar-width: thin; }
-.pg-tee { scroll-snap-align: start; display: flex; flex-direction: column; gap: 3px; color: var(--text); text-decoration: none; min-width: 0; }
-.pg-tee-media { position: relative; display: block; aspect-ratio: 5 / 7; overflow: hidden; background: var(--surface); margin-bottom: 10px; }
-.pg-tee-media > svg, .pg-tee-media > img, .pg-tee-media > div { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
-.pg-tee:hover .pg-tee-media > * { transform: scale(1.03); }
-.pg-tee-name { font-size: 14.5px; }
-.pg-tee-tech { font-size: 12.5px; color: var(--muted); }
-.pg-tee-price { font-size: 14px; color: var(--text-2); }
+/* about: why small runs — facts from the data */
+.pg-runfacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 8px 0 24px; border-top: 1px solid var(--line); max-width: 520px; }
+.pg-runfacts > div { padding: 16px 16px 14px 0; border-bottom: 1px solid var(--line); }
+.pg-runfacts > div + div { padding-left: 16px; border-left: 1px solid var(--line); }
+.pg-runfacts dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
+.pg-runfacts dd { margin: 6px 0 0; font-size: 20px; font-weight: 300; color: var(--text); }
+
+/* about: the polos strip */
+.pg-polos { display: grid; grid-auto-flow: column; grid-auto-columns: 44%; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; scrollbar-width: thin; }
+.pg-polo { scroll-snap-align: start; display: flex; flex-direction: column; gap: 3px; color: var(--text); text-decoration: none; min-width: 0; }
+.pg-polo-media { position: relative; display: block; aspect-ratio: 5 / 7; overflow: hidden; background: var(--surface); margin-bottom: 10px; }
+.pg-polo-media > svg, .pg-polo-media > img, .pg-polo-media > div { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s ease; }
+.pg-polo:hover .pg-polo-media > * { transform: scale(1.03); }
+.pg-polo-name { font-size: 14.5px; }
+.pg-polo-tech { font-size: 12.5px; color: var(--muted); }
+.pg-polo-price { font-size: 14px; color: var(--text-2); }
 
 /* about: CTA */
 .pg-cta { text-align: center; padding-top: 72px; padding-bottom: 80px; }
@@ -377,11 +381,7 @@ a.ck-line-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (min-width: 700px) {
   .pg-head { padding-top: 72px; padding-bottom: 48px; }
   .pg-section { padding-top: 80px; padding-bottom: 80px; }
-  .pg-tech { grid-template-columns: repeat(2, 1fr); border-top: 0; gap: 0 40px; }
-  .pg-tech-item { border-top: 1px solid var(--line); border-bottom: 0; padding: 28px 0 8px; }
-  .pg-steps { grid-template-columns: repeat(2, 1fr); gap: 0 40px; border-top: 0; }
-  .pg-steps li { border-top: 1px solid var(--line-2); border-bottom: 0; padding: 26px 0 10px; }
-  .pg-tees { grid-auto-columns: 30%; }
+  .pg-polos { grid-auto-columns: 30%; }
   .pg-btns { flex-direction: row; justify-content: center; }
   .pg-cta .pg-btns { max-width: none; align-items: center; }
 }
@@ -390,9 +390,12 @@ a.ck-line-name:hover { text-decoration: underline; text-underline-offset: 3px; }
   .pg-row > .pg-label { margin-top: 6px; }
   .pg-split { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 72px; }
   .pg-split-text { padding-right: 24px; }
-  .pg-tech { grid-template-columns: repeat(var(--cols, 4), 1fr); }
-  .pg-steps { grid-template-columns: repeat(4, 1fr); gap: 0 32px; }
-  .pg-tees { grid-auto-flow: row; grid-template-columns: repeat(5, 1fr); grid-auto-columns: auto; overflow: visible; gap: 12px; }
+  .pg-make { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 48px; border-top: 0; }
+  .pg-make li { position: relative; grid-template-columns: 1fr; gap: 0; padding: 32px 0 8px; border-top: 1px solid var(--line-2); border-bottom: 0; }
+  .pg-make-icon { grid-row: auto; width: 64px; height: 64px; margin-bottom: 22px; }
+  .pg-make-arrow { display: block; position: absolute; top: 60px; right: -38px; width: 28px; height: 10px; color: var(--muted); }
+  .pg-make li:last-child .pg-make-arrow { display: none; }
+  .pg-polos { grid-auto-flow: row; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); grid-auto-columns: auto; overflow: visible; gap: 12px; }
 }
 
 /* contact: channels */
@@ -508,5 +511,5 @@ a.ck-line-name:hover { text-decoration: underline; text-underline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .ck-panel.is-in, .ck-flash { animation: none; }
   .ck-field.loading .ck-spin { animation-duration: 2s; }
-  .pg-tee-media > * { transition: none; }
+  .pg-polo-media > * { transition: none; }
 }

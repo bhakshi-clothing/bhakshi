@@ -1,9 +1,11 @@
 /* BHAKSHI — shop / collection page (v3, minimal craft streetwear).
    One state object drives the page and is mirrored to the URL (history.replaceState), so every
    filtered / sorted / searched view is shareable:
-     cat, group, tag, drop, q, size, tech, instock (1 = in stock, 0 = sold out), min, max, sort, view, page
-   Layout: category links · centred title + count · thin toolbar (Filters · count · view toggle · sort)
-   · product grid (productCard) · "See more" once a list passes 16 pieces.
+     cat, group, tag, drop, q, look (stripes | script | knit), size, tech, instock (1 = in stock, 0 = sold out),
+     min, max, sort, view, page
+   Layout: category links (only when there are 2+ categories) · centred title + count · style chips
+   (All · Rugby stripes · Script polos · Knits) · slim drop banner (default view only) · thin toolbar
+   (Filters · count · view toggle · sort) · product grid (productCard) · "See more" past 16 pieces.
    Filters live in a right-hand drawer with a draft state and a live "View N items" button. */
 (() => {
   "use strict";
@@ -40,6 +42,19 @@
     ["grid", "Grid view", `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="6"/><rect x="9" y="1" width="6" height="6"/><rect x="1" y="9" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/></svg>`],
     ["large", "Large view", `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="6" height="14"/><rect x="9" y="1" width="6" height="14"/></svg>`]
   ];
+  /* styles ("looks") read from each product's drawing data, so new pieces sort themselves */
+  const LOOKS = [
+    { id: "stripes", label: "Rugby stripes", title: "Rugby stripes",
+      intro: "Bands and pinstripes knitted into the cloth, never printed on.",
+      test: p => !!(p.style && p.style.stripes) },
+    { id: "script", label: "Script polos", title: "Script polos",
+      intro: "Club lettering across the chest, raised in soft puff print or embroidered.",
+      test: p => !!(p.style && p.style.graphic && p.style.graphic.kind === "script") },
+    { id: "knit", label: "Knits", title: "Knits",
+      intro: "Rib and waffle knits with soft collars, for cooler evenings and long train rides.",
+      test: p => !!((p.style && ["rib", "waffle"].includes(p.style.knit)) || p.shape === "knitpolo") }
+  ];
+  const lookOf = id => LOOKS.find(l => l.id === id);
   const PAGE = 12;          // cards per "page"
   const PAGE_FROM = 16;     // paging only kicks in above this many results
 
@@ -71,6 +86,7 @@
     q: (params.get("q") || "").trim().slice(0, 80),
     size: list(params.get("size")),
     tech: list(params.get("tech")).map(techOf).filter(Boolean),
+    look: [...new Set(list(params.get("look")).map(v => v.toLowerCase()).filter(lookOf))],
     avail: ip === "1" ? ["in"] : ip === "0" ? ["out"] : [],
     min: num(params.get("min")),
     max: num(params.get("max")),
@@ -89,6 +105,7 @@
     if (S.cat.length) u.set("cat", S.cat.join(","));
     if (S.tag) u.set("tag", S.tag);
     if (S.q) u.set("q", S.q);
+    if (S.look.length) u.set("look", S.look.join(","));
     if (S.size.length) u.set("size", S.size.join(","));
     if (S.tech.length) u.set("tech", S.tech.join(","));
     if (S.avail.length === 1) u.set("instock", S.avail[0] === "in" ? "1" : "0");
@@ -102,16 +119,29 @@
   }
 
   /* ---------- search ---------- */
-  const PRINT_WORDS = { core: "core logo stack", monsoon: "monsoon rain", chai: "chai tea cutting break", express: "train railway express night route", hornok: "horn ok please truck art highway", logo: "logo" };
+  /* words a shopper might type, derived from the drawing data (stripes, script, knit, sleeves…) */
+  function styleWords(p) {
+    const st = p.style || {}, g = st.graphic || {}, w = [];
+    if (st.stripes) w.push("stripe striped stripes rugby", st.stripes.area === "full" ? "pinstripe pinstriped" : "band banded hooped");
+    if (g.kind === "script") w.push("script lettering text", g.text || "");
+    if (g.kind === "number") w.push("number numeral varsity", g.text || "");
+    if (st.knit) w.push(st.knit, st.knit === "pique" ? "pique honeycomb" : st.knit === "jersey" ? "jersey heavyweight" : "knit knitted knitwear sweater");
+    if (st.sleeve === "long") w.push("long sleeve full sleeve fullsleeve winter");
+    if (st.sleeve === "short") w.push("short sleeve half sleeve halfsleeve summer");
+    if (st.placket === "johnny") w.push("johnny collar open collar v neck");
+    if (st.tipping && st.tipping.length) w.push("tipped tipping");
+    if (st.collar && st.body && String(st.collar).toLowerCase() !== String(st.body).toLowerCase()) w.push("contrast collar");
+    w.push("polo collared collar");
+    return w.join(" ");
+  }
   const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-_/]/g, "").replace(/[^a-z0-9 ]/g, " ");
   const stem = w => (w.length > 3 && w.endsWith("es") && !w.endsWith("ses") ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w);
-  const SYN = { tee: "tshirt", tees: "tshirt", tshirt: "tshirt", top: "topwear", pant: "trouser", pants: "trouser", denim: "jean", sweatshirt: "hoodie", track: "jogger", tea: "chai", rain: "monsoon", truck: "hornok", train: "express", embroidered: "embroidery", painted: "paint" };
+  const SYN = { tee: "tshirt", tees: "tshirt", tshirt: "tshirt", top: "topwear", pant: "trouser", pants: "trouser", denim: "jean", sweatshirt: "hoodie", track: "jogger", embroidered: "embroidery", polos: "polo", rugbies: "rugby", rugger: "rugby", striped: "stripe", stripy: "stripe", lettering: "script", sweater: "knit", jumper: "knit", fullsleeve: "long", halfsleeve: "short", burgundy: "maroon", wine: "maroon", pink: "rose", yellow: "mustard", red: "crimson", brown: "cocoa", white: "chalk" };
   const HAY = new Map();
   function hay(p) {
     if (HAY.has(p.id)) return HAY.get(p.id);
     const c = CATEGORIES.find(x => x.id === p.category) || {};
-    const pr = p.print || {};
-    const raw = [p.name, p.category, c.name, c.group, p.colorName, p.fabric, p.fit, p.shape, (p.tags || []).join(" "), (p.techniques || []).join(" "), p.family, PRINT_WORDS[pr.front] || "", PRINT_WORDS[pr.back] || "", p.desc || ""].join(" ");
+    const raw = [p.name, p.category, c.name, c.group, p.colorName, p.fabric, p.fit, p.shape, (p.tags || []).join(" "), (p.techniques || []).join(" "), p.family, styleWords(p), p.desc || ""].join(" ");
     const n = norm(raw);
     const h = n + " " + n.split(/\s+/).map(stem).join(" ");
     HAY.set(p.id, h);
@@ -164,6 +194,7 @@
     if (skip !== "cat" && st.cat.length && !st.cat.includes(p.category)) return false;
     // sizes are product-level: "size M" = the style comes in M and is still in stock
     if (skip !== "size" && st.size.length && (!inStock(p) || !(p.sizes || []).some(s => st.size.includes(s)))) return false;
+    if (skip !== "look" && st.look.length && !st.look.some(l => lookOf(l).test(p))) return false;
     if (skip !== "tech" && st.tech.length && !(p.techniques || []).some(t => st.tech.includes(techOf(t)))) return false;
     if (skip !== "avail" && st.avail.length === 1 && (st.avail[0] === "in") !== inStock(p)) return false;
     if (skip !== "price" && st.min !== null && p.price < st.min) return false;
@@ -190,12 +221,16 @@
   }
   const results = (st = S) => sortList(scoped().filter(p => passes(p, st)), st.sort);
   const priceTop = () => Math.max(0, ...scoped().map(p => p.price));
-  const filterCount = st => st.cat.length + st.size.length + st.tech.length + (st.avail.length === 1 ? 1 : 0) + (st.min !== null || st.max !== null ? 1 : 0);
-  const clearFilters = st => Object.assign(st, { cat: [], size: [], tech: [], avail: [], min: null, max: null });
+  const filterCount = st => st.look.length + st.cat.length + st.size.length + st.tech.length + (st.avail.length === 1 ? 1 : 0) + (st.min !== null || st.max !== null ? 1 : 0);
+  const clearFilters = st => Object.assign(st, { look: [], cat: [], size: [], tech: [], avail: [], min: null, max: null });
+  /* the plain landing view: nothing searched, filtered or narrowed */
+  const isDefault = () => !S.q && !S.tag && !S.group && !S.cat.length && !filterCount(S);
 
   /* ---------- category links row ---------- */
   function renderCats() {
     const el = $("#shopCats");
+    // with a single category the row only repeats "All" — the style chips do that job instead
+    if (LIVE_CATS().length < 2 && !S.cat.length) { el.innerHTML = ""; el.hidden = true; return; }
     if (typeof categoryLinksRow === "function") {
       let out = "";
       const active = S.tag || S.q || S.group || S.drop ? null : S.cat.length === 1 ? S.cat[0] : S.cat.length ? null : "";
@@ -223,7 +258,9 @@
     if (S.cat.length > 1) { const t = S.cat.map(catLabel).join(" / "); return { title: t, plain: t }; }
     if (S.group) return { title: S.group, plain: S.group };
     if (S.drop) return { title: DROP_TITLE, plain: DROP_TITLE, kicker: "Limited release" };
-    if (S.tech.length === 1 && !filterCount({ ...S, tech: [] })) return { title: S.tech[0], plain: S.tech[0], kicker: "Technique" };
+    if (S.look.length === 1) { const l = lookOf(S.look[0]); return { title: l.title, plain: l.title, intro: l.intro }; }
+    if (S.look.length > 1 && !filterCount({ ...S, look: [] })) { const t = S.look.map(v => lookOf(v).label).join(" / "); return { title: t, plain: t }; }
+    if (S.tech.length === 1 && !filterCount({ ...S, tech: [] })) return { title: S.tech[0], plain: S.tech[0], kicker: "Detail" };
     return { title: "All products", plain: "All products" };
   }
   function renderHead(count) {
@@ -232,6 +269,9 @@
     const k = $("#shopKicker");
     k.textContent = h.kicker || "";
     k.hidden = !h.kicker;
+    const it = $("#shopIntro");
+    it.textContent = h.intro || "";
+    it.hidden = !h.intro;
     $("#shopCount").textContent = S.q ? (count ? plural(count, "result") : "") : plural(count, "product");
     $("#shopCount").hidden = !$("#shopCount").textContent;
     $("#tbCount").textContent = plural(count, "product");
@@ -239,6 +279,44 @@
     sf.hidden = !S.q;
     if (S.q && document.activeElement !== $("#shopQ")) $("#shopQ").value = S.q;
     document.title = `${h.plain} | ${STORE.name}`;
+  }
+
+  /* ---------- style chips: All · Rugby stripes · Script polos · Knits (only chips with products) ---------- */
+  function renderLooks() {
+    const el = $("#shopLooks");
+    const base = scoped().filter(p => passes(p, S, "look"));
+    const looks = LOOKS.map(l => ({ ...l, n: base.filter(l.test).length })).filter(l => l.n);
+    if (S.q || !looks.length) { el.innerHTML = ""; el.hidden = true; return; }
+    const one = S.look.length === 1 ? S.look[0] : "";
+    const chip = (href, look, label, n, on) => `<li><a class="shop-look${on ? " is-active" : ""}" href="${href}" data-look-chip="${look}" ${on ? 'aria-current="page"' : ""}>
+        <span>${esc(label)}</span>${n !== null ? `<span class="shop-look-n" aria-label="${plural(n, "style")}">${n}</span>` : ""}</a></li>`;
+    el.innerHTML = `<nav aria-label="Shop by style"><ul>${chip("shop.html", "", "All", null, !S.look.length)}${looks.map(l =>
+      chip(`shop.html?look=${l.id}`, l.id, l.label, l.n, one === l.id)).join("")}</ul></nav>`;
+    el.hidden = false;
+  }
+
+  /* ---------- slim drop banner (landing view only; owner photo STORE.campaign.banner, else drawn flat lay) ---------- */
+  let bannerDone = false;
+  function renderBanner() {
+    const el = $("#shopBanner");
+    const show = isDefault() && PRODUCTS.length > 1;
+    if (show && !bannerDone) {
+      bannerDone = true;
+      const n = PRODUCTS.length;
+      const eds = PRODUCTS.map(p => p.edition | 0).filter(Boolean);
+      const lo = Math.min(...eds), hi = Math.max(...eds);
+      const runs = eds.length ? (lo === hi ? `runs of ${lo}` : `runs of ${lo}–${hi}`) : "limited runs";
+      let img = "";
+      try { img = typeof campaignImage === "function" ? campaignImage("banner", { scene: "flatlay", ratio: "21:9", alt: `${DROP_TITLE}: the full drop laid flat` }) : ""; } catch (e) { img = ""; }
+      if (!img && typeof Art !== "undefined" && Art.campaign) { try { img = Art.campaign("flatlay", { ratio: "21:9" }); } catch (e) { img = ""; } }
+      el.innerHTML = `<figure class="shop-banner-fig">${img}</figure>
+        <div class="shop-banner-cap">
+          <p class="shop-banner-t">${esc(DROP_TITLE)}</p>
+          <p class="shop-banner-d">Contrast collars, rugby stripes, club script and soft knits. Collared classics for long weekdays and slow Sundays.</p>
+          <p class="shop-banner-m">${plural(n, "style")}<span aria-hidden="true">·</span>Limited ${esc(runs)}<span aria-hidden="true">·</span>Made in India</p>
+        </div>`;
+    }
+    el.hidden = !show || !el.innerHTML;
   }
 
   /* ---------- toolbar ---------- */
@@ -274,6 +352,8 @@
   const X = `<svg width="9" height="9" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.4"/></svg>`;
   function activeFilters(st) {
     const out = [];
+    // a single style is already shown by the chip row; pill it only alongside other filters or in search
+    if (st.look.length > 1 || (st.look.length && (st.q || filterCount({ ...st, look: [] })))) st.look.forEach(v => out.push({ k: "look", v, label: lookOf(v).label }));
     st.cat.forEach(v => out.push({ k: "cat", v, label: catLabel(v) }));
     st.tech.forEach(v => out.push({ k: "tech", v, label: v }));
     st.size.forEach(v => out.push({ k: "size", v, label: `Size: ${v}` }));
@@ -380,7 +460,7 @@
       const dym = didYouMean(S.q);
       return `<div class="shop-empty" role="status">
         <h2 class="shop-empty-h">No results for “${esc(S.q)}”</h2>
-        <p class="shop-empty-p">Check the spelling, or try a simpler word like “tee”, “chai” or “black”.</p>
+        <p class="shop-empty-p">Check the spelling, or try a simpler word like “rugby”, “stripe” or “green”.</p>
         ${dym.length ? `<p class="shop-empty-l">Did you mean</p><p class="shop-empty-links">${dym.map(o => `<a class="link-underline" href="${o.href}">${esc(o.label)}</a>`).join("")}</p>` : ""}
         <a class="btn btn-outline" href="shop.html">View all products</a>
       </div>`;
@@ -411,6 +491,8 @@
     const items = results();
     renderHead(items.length);
     renderCats();
+    renderLooks();
+    renderBanner();
     renderToolbar();
     renderPills();
     $("#shopToolbar").hidden = !scoped().length;
@@ -424,7 +506,8 @@
   const drawer = $("#filterDrawer"), panel = $(".fdrawer-panel", drawer), body = $("#filterBody");
   let D = null;           // draft state while the drawer is open
   let lastFocus = null, closeT = 0;
-  const open = new Set(["avail", "size", "price", "tech", "cat"]);
+  const GROUPS = ["look", "avail", "size", "price", "tech", "cat"];
+  const open = new Set(GROUPS);
   try { const c = JSON.parse(sessionStorage.getItem("bhakshi_fclosed") || "[]"); c.forEach(k => open.delete(k)); } catch (e) { /* ignore */ }
   const chev = `<svg class="fg-ic" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M2 6h8"/><path class="fg-ic-v" d="M6 2v8"/></svg>`;
   const group = (key, title, inner, n) => `<div class="fgroup ${open.has(key) ? "is-open" : ""}" data-g="${key}">
@@ -440,6 +523,11 @@
     const base = scoped();
     const cnt = (skip, fn) => base.filter(p => passes(p, st, skip) && fn(p)).length;
     const out = [];
+
+    const looks = LOOKS.filter(l => base.some(l.test) || st.look.includes(l.id));
+    if (looks.length) {
+      out.push(group("look", "Style", looks.map(l => check("look", l.id, l.label, st.look.includes(l.id), cnt("look", l.test))).join(""), st.look.length));
+    }
 
     const nIn = cnt("avail", inStock), nOut = cnt("avail", p => !inStock(p));
     out.push(group("avail", "Availability",
@@ -464,7 +552,7 @@
 
     const techs = TECHS.filter(t => base.some(p => (p.techniques || []).some(x => techOf(x) === t)));
     if (techs.length) {
-      out.push(group("tech", "Technique", techs.map(t => check("tech", t, t, st.tech.includes(t), cnt("tech", p => (p.techniques || []).some(x => techOf(x) === t)))).join(""), st.tech.length));
+      out.push(group("tech", "Details", techs.map(t => check("tech", t, t, st.tech.includes(t), cnt("tech", p => (p.techniques || []).some(x => techOf(x) === t)))).join(""), st.tech.length));
     }
 
     const cats = (S.group ? CATEGORIES.filter(c => c.group === S.group) : CATEGORIES).filter(c => base.some(p => p.category === c.id));
@@ -534,7 +622,7 @@
       t.setAttribute("aria-expanded", String(on));
       $(".fgroup-body", g).hidden = !on;
       on ? open.add(k) : open.delete(k);
-      try { sessionStorage.setItem("bhakshi_fclosed", JSON.stringify(["avail", "size", "price", "tech", "cat"].filter(x => !open.has(x)))); } catch (err) { /* ignore */ }
+      try { sessionStorage.setItem("bhakshi_fclosed", JSON.stringify(GROUPS.filter(x => !open.has(x)))); } catch (err) { /* ignore */ }
       return;
     }
     const b = e.target.closest("button[data-f]");
@@ -590,6 +678,16 @@
     if (rm) { removeFilter(rm.dataset.rm, rm.dataset.v); update(); const f = $("#shopPills .pill") || $("#filterBtn"); f.focus({ preventScroll: true }); return; }
     if (e.target.closest("[data-clear-all]")) { clearFilters(S); update(); $("#filterBtn").focus({ preventScroll: true }); return; }
     if (e.target.closest("[data-more]")) { S.page += 1; render({ animate: true, focusNew: true }); return; }
+    // style chips: switch in place (no reload), keeping any other filters
+    const lc = e.target.closest("[data-look-chip]");
+    if (lc && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
+      e.preventDefault();
+      const v = lc.dataset.lookChip;
+      S.look = v ? [v] : [];
+      update();
+      const nb = $(`#shopLooks [data-look-chip="${CSS.escape(v)}"]`); nb && nb.focus({ preventScroll: true });
+      return;
+    }
     // our own category links: switch in place (no reload)
     const a = e.target.closest("a[data-shoplink], #shopCats a[href]");
     if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
