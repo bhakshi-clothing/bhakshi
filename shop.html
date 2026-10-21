@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shop All | BHAKSHI</title>
-  <meta name="description" content="Shop considered men's essentials at BHAKSHI: shirts, t-shirts, polos, kurtas, jeans, chinos, joggers and co-ord sets. Cash on Delivery and 7-day exchange across India.">
-  <meta name="theme-color" content="#15120f">
+  <title>The Drop | BHAKSHI</title>
+  <meta name="description" content="Drop 01 from BHAKSHI: heavyweight oversized graphic tees, made in India in limited units. Cash on Delivery, free shipping above ₹999 and easy 7-day size exchange.">
+  <meta name="theme-color" content="#0a0a0a">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/features.css">
   <link rel="stylesheet" href="css/shop.css">
@@ -15,25 +15,25 @@
 </head>
 <body data-page="shop">
   <main id="main" class="shop-page">
-    <header class="shop-hero">
+    <header class="drop-head">
       <div class="container">
-        <nav class="crumbs" aria-label="Breadcrumb"><ol id="shopCrumbs"><li><a href="index.html">Home</a></li><li aria-current="page">Shop</li></ol></nav>
-        <div class="shop-hero-row">
-          <div class="shop-hero-text">
-            <p class="eyebrow" id="shopEyebrow">The wardrobe</p>
-            <h1 class="shop-title" id="shopTitle">Shop <em>all</em></h1>
-            <p class="shop-desc" id="shopDesc"></p>
-          </div>
-          <p class="shop-count" id="shopCount" aria-live="polite"></p>
+        <div class="drop-head-top">
+          <nav class="crumbs drop-crumbs" aria-label="Breadcrumb"><ol id="shopCrumbs"><li><a href="index.html">Home</a></li><li aria-current="page"><span>Shop</span></li></ol></nav>
+          <p class="shop-status" id="shopStatus" aria-live="polite"></p>
+        </div>
+        <p class="drop-eyebrow" id="shopEyebrow">[ DROP 01 ]</p>
+        <h1 class="drop-title" id="shopTitle"><span class="drop-title-t">The Drop</span><sup class="drop-count" id="shopCount"></sup></h1>
+        <div class="drop-sub">
+          <p class="drop-desc" id="shopDesc"></p>
+          <dl class="drop-meta" id="shopMeta"></dl>
         </div>
       </div>
-      <div class="divider-print shop-divider" aria-hidden="true"></div>
     </header>
 
     <div class="container shop-body">
       <nav class="shop-chips" id="shopChips" aria-label="Categories"></nav>
 
-      <div class="shop-layout">
+      <div class="shop-layout" id="shopLayout">
         <aside class="shop-side" aria-label="Filters">
           <div class="shop-side-head">
             <h2>Filters</h2>
@@ -43,33 +43,29 @@
         </aside>
 
         <section class="shop-results" aria-label="Products">
-          <div class="shop-toolbar">
-            <p class="shop-toolbar-count" id="toolbarCount"></p>
-            <div class="shop-toolbar-right">
-              <label class="shop-sort">
+          <div class="shop-toolbar" id="shopToolbar">
+            <div class="tb-sizes" id="tbSizes" role="group" aria-label="Filter by size in stock"></div>
+            <p class="tb-count" id="toolbarCount"></p>
+            <div class="tb-right">
+              <label class="tb-sort">
                 <span>Sort</span>
-                <select id="shopSort" aria-label="Sort products">
-                  <option value="featured">Featured</option>
-                  <option value="new">Newest</option>
-                  <option value="price-asc">Price: low to high</option>
-                  <option value="price-desc">Price: high to low</option>
-                  <option value="discount">Biggest discount</option>
-                </select>
+                <select id="shopSort" aria-label="Sort products"></select>
               </label>
-              <div class="shop-density" role="group" aria-label="Grid density" id="shopDensity"></div>
+              <div class="tb-views" role="group" aria-label="Layout" id="shopViews"></div>
             </div>
           </div>
           <div class="shop-pills" id="shopPills" aria-label="Active filters"></div>
-          <div class="grid-products shop-grid" id="shopGrid" aria-live="polite"></div>
+          <div class="shop-grid" id="shopGrid" data-view="grid" aria-live="polite"></div>
           <div id="shopExtra"></div>
         </section>
       </div>
     </div>
 
-    <button type="button" class="shop-fab" id="shopFab" aria-haspopup="dialog">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+    <button type="button" class="shop-fab" id="shopFab" data-bottom-bar aria-haspopup="dialog" hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
       <span>Filter &amp; Sort</span><b class="shop-fab-n" id="shopFabN" hidden></b>
     </button>
+    <div class="list-preview" id="listPreview" aria-hidden="true"></div>
   </main>
 
   <script src="js/products.js"></script>

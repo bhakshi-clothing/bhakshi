@@ -1,17 +1,24 @@
 /* =========================================================
-   BHAKSHI — garment illustrations
-   Stylised flat-lay artwork used whenever a product has no photos.
+   BHAKSHI — product artwork (v2, "dark drop culture")
+   Studio-style garment renders + original graphic prints, used
+   whenever a product has no photos.
 
    API (global `Art`):
-     Art.garment(product, { bg = true, view = "front" })  -> SVG string
-         view: "front" | "back" | "detail" (close-up crop)
+     Art.garment(product, { bg = true, view = "front" })  -> SVG string (400×500)
+         view: "front" | "back" | "detail" (close-up of the hero print,
+         fabric and woven BHAKSHI tab). bg:false => transparent.
+     Art.print(name, { color, side })                      -> SVG string (400×400, transparent)
+         just the graphic; `color` = garment colour it sits on (picks inks).
+         side "front" | "back" (default "back") — only "chai" differs
+         (front = chai glass, back = break ticket).
      Art.outfit(top, bottom, { bg = true })               -> SVG string
      Art.swatch(color)                                    -> SVG string (24×24)
 
-   Everything is drawn in a 400×500 canvas. Pure string building:
-   no DOM access, no external requests. Every call gets its own id
-   prefix so gradients / patterns / clipPaths never collide when many
-   SVGs are inlined on one page.
+   Pure string building: no DOM access, no network. Every call gets its
+   own id prefix so gradients / patterns / clipPaths never collide when
+   many SVGs are inlined on one page. Text uses the page's Google Fonts
+   (Archivo wide + Space Mono) with textLength, so layouts hold even
+   before the fonts load (falls back to Arial Black / monospace).
    ========================================================= */
 const Art = (() => {
   let uid = 0;
@@ -46,6 +53,11 @@ const Art = (() => {
     const c = v => Math.max(0, Math.min(1, v));
     return hslToHex(h, c(s + ds), c(l + dl));
   }
+  // perceived brightness 0…1 (decides light vs dark ink)
+  function luma(hex) {
+    const n = parseInt(normHex(hex).slice(1), 16);
+    return ((n >> 16) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) / 255;
+  }
 
   /* ---------- fabric textures (tiny tiling patterns, cheap to render) ---------- */
   const W = (o, w = .8) => `stroke="#fff" stroke-opacity="${o}" stroke-width="${w}"`;
@@ -57,13 +69,16 @@ const Art = (() => {
     twill:   id => pat(id, 4, `<path d="M0 1H4" ${W(.07)}/><path d="M0 3H4" ${B(.07)}/>`, "rotate(-40)"),
     oxford:  id => pat(id, 4, `<path d="M0 .7H2M2 2.7H4" ${W(.2, 1.1)}/><path d="M0 2.7H2M2 .7H4" ${B(.06, 1.1)}/>`),
     linen:   id => pat(id, 12, `<path d="M0 2H7M9 2H12M0 6.5H4M6 6.5H12M0 10H9" ${W(.13)}/><path d="M3 0V12M8.5 0V5M8.5 7V12" ${B(.06, .7)}/>`),
-    cotton:  id => pat(id, 3, `<path d="M0 1.5H3" ${W(.07)}/><path d="M1.5 0V3" ${B(.05)}/>`),
-    jersey:  (id, c) => pat(id, 3, `<path d="M1.5 0V3" ${B(c.light ? .035 : .05, .9)}/><path d="M0 1.5H3" ${W(.04, .6)}/>`),
+    cotton:  (id, c) => pat(id, 3, `<path d="M0 1.5H3" ${W(c.dark ? .03 : .07)}/><path d="M1.5 0V3" ${B(c.dark ? .1 : .05)}/>`),
+    // heavyweight single jersey: knit "V" columns + faint slub dots (visible on close-ups)
+    jersey:  (id, c) => pat(id, 2.6, `<path d="M0 0L.65 1.3L1.3 0M1.3 1.3L1.95 2.6L2.6 1.3" fill="none" ${B(c.light ? .05 : c.dark ? .09 : .06, .5)}/><path d="M.65 1.3V2.6M1.95 0V1.3" ${W(c.dark ? .035 : .05, .45)}/>`),
     pique:   (id, c) => pat(id, 3.2, `<circle cx=".8" cy=".8" r=".6" fill="#000" fill-opacity="${c.light ? .07 : .12}"/><circle cx="2.4" cy="2.4" r=".6" fill="#fff" fill-opacity="${c.dark ? .05 : .08}"/>`),
     melange: (id, c) => pat(id, 7, `<path d="M1 1h.4M4.5 2h.4M2 5h.4M6 4.4h.4" stroke="#fff" stroke-opacity="${c.dark ? .09 : .26}" stroke-width="1.2" stroke-linecap="round"/><path d="M3 3.4h.4M5.5 6.2h.4M.4 3h.4" stroke="#000" stroke-opacity="${c.dark ? .2 : .14}" stroke-width="1.2" stroke-linecap="round"/>`),
     suiting: id => pat(id, 3, `<path d="M0 1.5H3" ${W(.05)}/>`, "rotate(-45)"),
     nylon:   () => ""
   };
+  // bio-wash mottling: a sparse larger tile of soft light/dark specks layered over the knit
+  const WASH = (id, c) => pat(id, 37, `<path d="M3 4h.6M21 9h1M9 23h.6M27 30h.8M33 12h.5" stroke="#fff" stroke-opacity="${c.dark ? ".04" : ".06"}" stroke-width="1.5" stroke-linecap="round"/><path d="M15 2h.8M2 16h.6M30 19h.8M18 33h.5" stroke="#000" stroke-opacity="${c.light ? ".05" : ".08"}" stroke-width="1.5" stroke-linecap="round"/>`, "rotate(8)");
   function fabricOf(p) {
     const f = (p.fabric || "") + " " + (p.name || "");
     if (/denim|jeans/i.test(f)) return "denim";
@@ -77,7 +92,7 @@ const Art = (() => {
     return p.shape === "tee" ? "jersey" : "cotton";
   }
 
-  /* ---------- per-garment palette ---------- */
+  /* ---------- per-garment palette (tuned for the dark studio) ---------- */
   function ctx(p, k) {
     const base = normHex(p.color);
     const [h, s, l] = hexToHsl(base);
@@ -88,13 +103,18 @@ const Art = (() => {
       lt: shade(base, dark ? .1 : .07),
       dk: shade(base, light ? -.1 : -.09),
       dk2: shade(base, light ? -.2 : -.17),
-      inner: shade(base, light ? -.13 : dark ? -.06 : -.14),
-      rib: shade(base, light ? -.04 : -.03),
-      line: light ? shade(base, -.34, -.05) : dark ? shade(base, -.06) : shade(base, -.2),
+      inner: shade(base, light ? -.16 : dark ? -.04 : -.15),
+      rib: shade(base, light ? -.04 : dark ? .025 : -.03),
+      // dark garments get a lighter edge line so they separate from the near-black studio
+      line: light ? shade(base, -.3, -.05) : dark ? shade(base, .06) : shade(base, -.16),
       stitch: fab === "denim" ? (blueish ? "#c98d44" : "#a8916f")
         : dark ? shade(base, .17) : shade(base, light ? -.24 : -.14),
       btn: light ? "#fdfcf9" : shade(base, dark ? .16 : .1),
-      metal: dark ? "#8f8b84" : "#b9b2a6"
+      metal: dark ? "#8f8b84" : "#b9b2a6",
+      // fold strength multipliers: shadows read on light cloth, highlights on dark cloth
+      fk: light ? 1.3 : dark ? 1.5 : 1.15,
+      hk: light ? .5 : dark ? 1.2 : .95,
+      rim: light ? .3 : dark ? .6 : .42
     };
   }
 
@@ -108,7 +128,7 @@ const Art = (() => {
   const piece = (c, d, f, x = "") => P(d, f || c.base, ` stroke="${c.line}" stroke-width="1.2" stroke-linejoin="round"${x}`) +
     (c.texOn ? P(d, `url(#${c.k}t)`) : "");
   // soft folds (rendered inside a blurred, clipped group)
-  const op = o => String(o).replace(/^0\./, ".");
+  const op = o => String(r1(o * 100) / 100).replace(/^0\./, ".");
   const F = (d, w = 4, o = .13) => `<path d="${d}" fill="none" stroke="#000" stroke-width="${w}" stroke-opacity="${op(o)}" stroke-linecap="round"/>`;
   const Hl = (d, w = 6, o = .12) => `<path d="${d}" fill="none" stroke="#fff" stroke-width="${w}" stroke-opacity="${op(o)}" stroke-linecap="round"/>`;
   // buttons reference one unit-size button per SVG (keeps markup small)
@@ -145,39 +165,81 @@ const Art = (() => {
   // cheap rib knit for straight bands: a wide dashed stroke along the band's centre line
   const rb = (d, w, o = .2) => L(d, "#000", w, ` stroke-opacity="${o}" stroke-dasharray=".9 2.5"`);
 
+  /* ---------- type helpers ---------- */
+  const FW = `font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-stretch="125%"`;
+  const FM = `font-family="Space Mono, monospace" font-weight="700"`;
+  // fixed-width text: textLength pins the width whatever font actually rendered
+  const T = (x, y, s, str, fill, w, a, x2 = "") =>
+    `<text x="${r1(x)}" y="${r1(y)}" font-size="${r1(s)}"${fill ? ` fill="${fill}"` : ""}${w ? ` textLength="${w}" lengthAdjust="spacingAndGlyphs"` : ""}${a ? ` text-anchor="${a}"` : ""}${x2}>${escA(str)}</text>`;
+  // mono text sized to Space Mono's natural advance (.6em) + tracking
+  const MT = (x, y, s, str, fill, a, tr = .08) =>
+    `<text x="${r1(x)}" y="${r1(y)}" font-size="${r1(s)}"${fill ? ` fill="${fill}"` : ""} textLength="${r1(String(str).length * s * (.6 + tr) - s * tr)}"${a ? ` text-anchor="${a}"` : ""}>${escA(str)}</text>`;
+  // woven brand tab: acid label with the wordmark (used at the neck)
+  const tab = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx=".6" fill="#c6ff00"/><path d="M${x} ${y + .7}H${x + w}M${x} ${y + h - .7}H${x + w}" stroke="#000" stroke-opacity=".18" stroke-width=".4"/>` +
+    `<g ${FW}>${T(x + w / 2, y + h * .68, h * .48, "BHAKSHI", "#0a0a0a", w * .74, "middle")}</g>`;
+
   /* =========================================================
-     GARMENTS — each returns { parts:[d | {d,f}], folds, top }
+     GARMENTS — each returns { parts:[d | {d,f}], folds, hl?, top }
      parts: silhouette pieces (filled, outlined, shaded, textured)
      folds: soft shading strokes (blurred, clipped to silhouette)
+     hl:    soft highlight strokes (blurred, clipped) — optional
      top:   details drawn above (collars, plackets, stitching…)
      ========================================================= */
 
-  /* ---------- T-shirt (regular / oversized drop-shoulder) ---------- */
+  /* ---------- T-shirt: heavyweight oversized (dropped shoulder, boxy) or regular ----------
+     Geometry is computed from a few measurements so both fits share one drawing. */
+  function teeGeo(o) {
+    const big = o.over !== false;
+    const S = big ? [82, 118] : [106, 112];                 // shoulder point (left)
+    const a = (big ? 36 : 42) * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    const len = big ? 74 : 74, cuff = big ? 84 : 64, sx = big ? 82 : 104, hem = big ? 416 : 404;
+    const C1 = [S[0] - len * ca, S[1] + len * sa];           // cuff, outer corner
+    const C2 = [C1[0] + cuff * sa, C1[1] + cuff * ca];       // cuff, underarm corner
+    const A = [sx, r1(C2[1] - (sx - C2[0]) / ca * sa)];      // armpit
+    return { big, S, C1, C2, A, ca, sa, sx, hem };
+  }
   function tee(c, v, o) {
-    const big = o.over;
-    const body = big
-      ? "M166 100C180 108 220 108 234 100L300 124L360 206L326 238L302 214L304 384Q200 390 96 384L98 214L74 238L40 206L100 124Z"
-      : "M168 100C181 107 219 107 232 100L290 116L350 186L320 218L290 190L294 376Q200 382 106 376L110 190L80 218L50 186L110 116Z";
-    const seam = big ? "M100 124Q112 168 98 214" : "M110 116Q120 152 110 190";
-    const cuff = big ? ["M46 198L80 230", "M48 195L82 227"] : ["M57 179L87 211", "M59 176L89 208"];
-    const hy = big ? 372 : 364, hx = big ? 97 : 107;
-    let top = L(both(seam), c.line, 1.1, ` stroke-opacity=".7"`) +
-      st(c, both(cuff[0])) + st(c, both(cuff[1])) +
-      st(c, `M${hx} ${hy}Q200 ${hy + 6} ${400 - hx} ${hy}`) +
-      st(c, `M${hx} ${hy - 4}Q200 ${hy + 2} ${400 - hx} ${hy - 4}`);
+    const g = teeGeo(o), { S, C1, C2, A, ca, sa, sx, hem } = g;
+    const X = x => r1(400 - x), pt = p => `${r1(p[0])} ${r1(p[1])}`, mp = p => `${X(p[0])} ${r1(p[1])}`;
+    const lerp = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+    const Q1 = [(S[0] + C1[0]) / 2 - sa * 3, (S[1] + C1[1]) / 2 - ca * 3];   // sleeve top, slight bulge
+    const sc = [sx + 1.5, (A[1] + hem) / 2], H = [sx - 1, hem];             // side seam (boxy, near straight)
+    const sh = [S[0] + 22, S[1] - 12];                                        // shoulder curve control
+    const body = `M158 90C178 97.5 222 97.5 242 90C262 94 ${X(sh[0])} ${sh[1]} ${mp(S)}Q${mp(Q1)} ${mp(C1)}L${mp(C2)}L${mp(A)}` +
+      `Q${mp(sc)} ${mp(H)}Q${X(150)} ${hem + 5} 200 ${hem + 5}Q150 ${hem + 5} ${pt(H)}Q${pt(sc)} ${pt(A)}L${pt(C2)}L${pt(C1)}Q${pt(Q1)} ${pt(S)}C${pt(sh)} 138 94 158 90Z`;
+    // dropped-shoulder armhole seam + double-needle cuff and hem
+    const seam = `M${pt(S)}Q${r1(S[0] + 8)} ${r1((S[1] + A[1]) / 2)} ${pt(A)}`;
+    const ins = (p, d) => [p[0] + ca * d, p[1] - sa * d];
+    const cuffSt = d => `M${pt(ins(C1, d))}L${pt(ins(C2, d))}`;
+    let top = L(both(seam), c.line, 1, ` stroke-opacity=".8"`) + F(both(seam), 2.4, .12 * c.fk) +
+      st(c, both(cuffSt(6))) + st(c, both(cuffSt(9))) +
+      st(c, `M${sx} ${hem - 9}Q200 ${hem - 4} ${X(sx)} ${hem - 9}`) + st(c, `M${sx} ${hem - 12}Q200 ${hem - 7} ${X(sx)} ${hem - 12}`);
+    const backRib = "M158 90C178 97.5 222 97.5 242 90L234 94C218 104 182 104 166 94Z";
     if (v === "back") {
-      top += piece(c, "M161 101C176 116 224 116 239 101L232 100C219 107 181 107 168 100Z", c.rib) +
-        st(c, "M164 104C178 113 222 113 236 104");
+      top += piece(c, backRib, c.rib) + rb("M162 92C180 100.5 220 100.5 238 92", 5.5, .22) +
+        st(c, "M163 98.5C180 108 220 108 237 98.5") + tab(191, 108, 18, 7.5);
     } else {
-      top += P("M168 100C181 107 219 107 232 100C226 132 174 132 168 100Z", c.inner) +
-        `<rect x="193" y="107" width="14" height="7" rx="1" fill="#d9772b"/>` +
-        piece(c, "M161 101C166 142 234 142 239 101L232 100C226 132 174 132 168 100Z", c.rib) +
-        st(c, "M163.5 103C168.5 138 231.5 138 236.5 103");
+      // inside of the back neck (shadowed) with the woven label, then the thick front rib
+      top += P(backRib, shade(c.inner, -.03)) +
+        P("M166 94C182 104 218 104 234 94C233 114 218 122 200 122C182 122 167 114 166 94Z", c.inner) +
+        F("M170 100C186 108 214 108 230 100", 5, .3) + tab(189, 102.5, 22, 8.5) +
+        piece(c, "M158 90C159 116 178 132 200 132C222 132 241 116 242 90L234 94C233 114 218 122 200 122C182 122 167 114 166 94Z", c.rib) +
+        rb("M162 92.5C163 115 179 127 200 127C221 127 237 115 238 92.5", 8, .2) +
+        st(c, "M155.5 92C157 120 177 135.5 200 135.5C223 135.5 243 120 244.5 92");
     }
-    const folds = F("M146 210Q164 250 152 300", 7) + F("M256 220Q240 262 252 310", 6) +
-      F("M130 352Q200 342 270 354", 5, .1) + F(both("M100 150Q86 170 88 190"), 4) +
-      Hl(both("M126 130Q142 140 158 136"), 5);
-    return { parts: [body], folds, top };
+    // heavyweight drape: few, broad folds
+    const fk = c.fk, hk = c.hk;
+    const Fc = (d, w, o) => `<path d="${d}" stroke="#000" stroke-width="${w}" stroke-opacity="${op(o)}"/>`;
+    const Hc = (d, w, o) => `<path d="${d}" stroke="#fff" stroke-width="${w}" stroke-opacity="${op(o)}"/>`;
+    const sl = (t1, t2, off) => { const p = lerp(S, A, t1), q = lerp(C1, C2, t2); return `M${pt([p[0] - 4, p[1]])}Q${pt([(p[0] + q[0]) / 2 - sa * off, (p[1] + q[1]) / 2 - ca * off])} ${pt(ins(q, 12))}`; };
+    const folds = Fc(both(`M${A[0] + 3} ${A[1] + 4}Q${A[0] + 24} ${A[1] + 30} ${A[0] + 34} ${A[1] + 96}`), 9, .13 * fk) +
+      Fc(`M146 150Q134 280 146 ${hem - 10}`, 11, .1 * fk) + Fc(`M262 158Q276 290 258 ${hem - 10}`, 10, .11 * fk) +
+      Fc(both(sl(.55, .55, 4)), 6, .14 * fk) + Fc(`M${sx + 8} ${hem - 22}Q150 ${hem - 30} 200 ${hem - 22}Q250 ${hem - 14} ${X(sx + 8)} ${hem - 26}`, 6, .1 * fk) +
+      Fc("M176 146Q200 152 224 146", 7, .12 * fk) + Fc(both(`M${sx + 6} ${A[1] + 20}L${sx + 4} ${hem - 20}`), 10, .12 * fk);
+    const hl = Hc(`M166 150Q154 280 168 ${hem - 16}`, 22, .05 * hk) + Hc(`M242 166Q254 290 240 ${hem - 18}`, 18, .04 * hk) +
+      Hc(both(sl(.3, .3, 6)), 8, .09 * hk) + Hc(both(`M150 98Q118 104 ${pt([S[0] + 8, S[1] + 4])}`), 7, .1 * hk) +
+      Hc(both(`M${A[0] + 14} ${A[1] + 6}Q${A[0] + 36} ${A[1] + 34} ${A[0] + 46} ${A[1] + 100}`), 10, .06 * hk);
+    return { parts: [body], folds, hl, top };
   }
 
   /* ---------- Polo (piqué, ribbed collar + cuffs, 2-button placket) ---------- */
@@ -432,45 +494,244 @@ const Art = (() => {
     return { parts: [body, ...cuffs], folds, top };
   }
 
+  /* =========================================================
+     PRINTS — original Drop 01 graphics, each drawn in a 400×400 box.
+     fn(n, k, side) -> markup; n = ink palette for the garment colour,
+     k = unique id prefix (for clipPaths / textPaths).
+     ========================================================= */
+  function inks(col) {
+    const base = normHex(col), dark = luma(base) < .5;
+    return {
+      base, dark,
+      fg: dark ? "#f2f1ec" : "#151515",          // main ink
+      soft: dark ? "#a9a8a2" : "#6a6862",        // secondary ink
+      acc: dark ? "#c6ff00" : "#ff3d2e",         // brand accent (acid on dark, hot on light)
+      ko: base                                   // knockout = garment colour
+    };
+  }
+  // deterministic PRNG so artwork never changes between renders
+  const rng = seed => () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const rule = (y, col, x0 = 10, x1 = 390, w = 2) => `<path d="M${x0} ${y}H${x1}" stroke="${col}" stroke-width="${w}"/>`;
+
+  /* small chest mark: wide wordmark over an accent bar + mono drop tag */
+  function pLogo(n) {
+    return `<g ${FW}>${T(200, 222, 104, "BHAKSHI", n.fg, 384, "middle")}</g>` +
+      `<rect x="8" y="244" width="96" height="22" fill="${n.acc}"/>` +
+      `<g ${FM}>${T(118, 264, 25, "DROP 01 / FIRST LIGHT", n.fg, 274)}</g>`;
+  }
+
+  /* core: the BHAKSHI stack — solid, accent, then outlines fading out */
+  function pCore(n) {
+    let s = `<g ${FM}>${MT(10, 30, 18, "[ DROP 01 ]", n.fg)}${MT(390, 30, 18, "EST. 2026", n.fg, "end")}` +
+      `${MT(10, 386, 18, "MADE IN INDIA", n.fg)}${MT(390, 386, 18, "240 GSM / 001", n.soft, "end")}</g>` +
+      rule(42, n.fg) + rule(360, n.fg) + `<g ${FW}>`;
+    const ys = [106, 168, 230, 292, 354];
+    ys.forEach((y, i) => {
+      const style = i < 2 ? ` fill="${n.fg}"` : i === 2 ? ` fill="${n.acc}"`
+        : ` fill="none" stroke="${n.fg}" stroke-width="2.4" stroke-opacity="${i === 3 ? 1 : .55}"`;
+      s += T(200, y - 6, 72, "BHAKSHI", "", 384, "middle", style);
+    });
+    return s + `</g>`;
+  }
+
+  /* monsoon: rain streaks inside a disc, wrapped by a circular type lockup */
+  function pMonsoon(n, k) {
+    const cx = 200, cy = 186, R = 124, rnd = rng(1306);
+    let thick = "", thin = "", acc = "";
+    const dx = -.36, dy = .93;                              // wind-blown rain, falling right → left
+    for (let i = 0; i < 120; i++) {
+      const x = 70 + rnd() * 300, y = 30 + rnd() * 300, l = 10 + rnd() * (i % 4 ? 40 : 120);
+      if (Math.hypot(x - cx, y - cy) > R + 40) continue;
+      const seg = `M${r1(x)} ${r1(y)}l${r1(dx * l)} ${r1(dy * l)}`;
+      if (i % 17 === 0) acc += seg; else if (i % 3) thin += seg; else thick += seg;
+    }
+    const circ = r1(2 * Math.PI * 152);
+    return `<defs><clipPath id="${k}m"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath>` +
+      `<path id="${k}r" d="M${cx - 152} ${cy}a152 152 0 1 1 304 0a152 152 0 1 1 -304 0"/></defs>` +
+      `<g clip-path="url(#${k}m)" stroke-linecap="round"><path d="${thin}" stroke="${n.fg}" stroke-width="3" stroke-opacity=".75"/>` +
+      `<path d="${thick}" stroke="${n.fg}" stroke-width="6.5"/><path d="${acc}" stroke="${n.acc}" stroke-width="6.5"/></g>` +
+      `<circle cx="${cx}" cy="${cy}" r="${R + 10}" fill="none" stroke="${n.fg}" stroke-width="2"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="${R + 50}" fill="none" stroke="${n.fg}" stroke-width="2"/>` +
+      `<g ${FW} font-size="30" fill="${n.fg}" transform="rotate(-16 ${cx} ${cy})"><text><textPath href="#${k}r" textLength="${circ - 6}" lengthAdjust="spacing">MONSOON SEASON • JUNE—SEPTEMBER •</textPath></text></g>` +
+      // centre tag: knockout block
+      `<rect x="146" y="166" width="108" height="40" fill="${n.fg}"/>` +
+      `<g ${FW}>${T(200, 196, 26, "06—09", n.ko, 92, "middle")}</g>` +
+      `<g ${FM}>${MT(10, 388, 16, "19.07°N 72.87°E", n.fg)}${MT(390, 388, 16, "RAIN INDEX 86%", n.fg, "end")}</g>` +
+      `<rect x="10" y="368" width="60" height="5" fill="${n.acc}"/>`;
+  }
+
+  /* chai (front): line-drawn cutting-chai glass with steam */
+  function pChaiGlass(n) {
+    const tea = n.dark ? "#d9894a" : "#b8662c", foam = n.dark ? "#f0c9a0" : "#e2b48a";
+    // fluted lower half: lines following the taper
+    let fl = "";
+    for (let i = 1; i < 9; i++) {
+      const t = i / 9, xt = 128 + 144 * t, xb = 148 + 104 * t;
+      fl += `M${r1(xt + (xb - xt) * .45)} 232L${r1(xb)} 322`;
+    }
+    return `<g fill="none" stroke="${n.fg}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="M125 190L146 328Q200 340 254 328L275 190Q200 202 125 190Z" fill="${tea}" stroke="none"/>` +
+      `<ellipse cx="200" cy="190" rx="75" ry="11" fill="${foam}" stroke-width="5"/>` +
+      `<path d="M120 152L146 328Q200 342 254 328L280 152"/><ellipse cx="200" cy="152" rx="80" ry="13"/>` +
+      `<path d="${fl}" stroke-width="4" stroke-opacity=".8"/><path d="M150 312Q200 322 250 312" stroke-width="4"/>` +
+      `<path d="M168 128c-14-16 12-28 0-46s12-30 2-44M200 122c-14-18 14-30 0-50s14-32 0-48M232 128c-12-16 12-28 0-44s12-28 2-40" stroke-width="5"/>` +
+      `<path d="M132 178l8 2M138 214l6 1" stroke-width="5"/></g>` +
+      `<g ${FM}>${T(200, 386, 26, "CUTTING CHAI · 4PM", n.fg, 330, "middle")}</g>`;
+  }
+
+  /* chai (back): a "CHAI BREAK" ticket — big 4:00 PM + mono menu rows + barcode */
+  function pChaiTicket(n, k) {
+    const ink = n.fg, hot = n.dark ? "#ffb04a" : "#c24a1c";
+    // ticket outline with side notches at the perforation
+    const tk = "M40 12H360V110A14 14 0 0 0 360 138V388H40V138A14 14 0 0 0 40 110Z";
+    const rows = [["01", "ADRAK", "YES"], ["02", "ELAICHI", "YES"], ["03", "BISCUIT", "DIP"], ["04", "SUGAR", "2 SPN"], ["05", "GOSSIP", "MAX"]];
+    let r = "";
+    rows.forEach(([a, b, c2], i) => {
+      const y = 274 + i * 17;
+      r += MT(60, y, 14, a, n.soft) + MT(92, y, 14, b, ink) + MT(340, y, 14, c2, ink, "end");
+    });
+    let bars = "", x = 60, rnd = rng(400);
+    while (x < 210) { const w = 1.5 + Math.floor(rnd() * 3) * 1.6; bars += `M${r1(x)} 358v18`; x += w + 2.2 + rnd() * 2; }
+    return `<path d="${tk}" fill="none" stroke="${ink}" stroke-width="4"/>` +
+      `<rect x="40" y="12" width="320" height="78" fill="${ink}"/>` +
+      `<g ${FM}>${MT(56, 34, 13, "NO. 0400", n.ko)}${MT(344, 34, 13, "ADMIT ONE", n.ko, "end")}` +
+      `${MT(60, 246, 13, "DAILY · IST", n.soft)}${MT(340, 246, 13, "PLATFORM: ANY", ink, "end")}${r}` +
+      `${MT(340, 374, 12, "NO EXCEPTIONS", ink, "end")}</g>` +
+      `<g ${FW}>${T(200, 80, 40, "CHAI BREAK", n.ko, 288, "middle")}${T(60, 222, 104, "4:00", hot, 214)}${T(340, 192, 40, "PM", hot, 62, "end")}${T(340, 222, 22, "SHARP", ink, 62, "end")}</g>` +
+      `<path d="M60 124H340" stroke="${ink}" stroke-width="2" stroke-dasharray="4 4"/>` +
+      `<path d="M60 256H340M60 348H340" stroke="${ink}" stroke-width="2"/>` +
+      `<path d="${bars}" stroke="${ink}" stroke-width="2.4"/>`;
+  }
+
+  /* express: railway station board + vertical route map */
+  function pExpress(n) {
+    const ink = n.fg, yel = "#f2c230", dk = "#141414";
+    const st = [["BKS", "BHAKSHI JN.", "22:10"], ["CHT", "CHAI TAPRI", "23:40"], ["MNS", "MONSOON NAGAR", "01:25"], ["HRN", "HORN OK ROAD", "03:50"], ["DWN", "DAWN TERMINUS", "06:20"]];
+    let s = "";
+    st.forEach(([c3, nm, t], i) => {
+      const y = 150 + i * 50, end = i === 0 || i === 4, here = i === 2;
+      s += (here ? `<circle cx="64" cy="${y}" r="15" fill="none" stroke="${yel}" stroke-width="3"/>` : "") +
+        `<circle cx="64" cy="${y}" r="${end ? 9 : 7}" fill="${end || here ? (here ? yel : ink) : n.ko}" stroke="${here ? yel : ink}" stroke-width="3.5"/>` +
+        `<g ${FW}>${T(98, y + 4, 26, c3, here ? yel : ink, 70)}</g>` +
+        `<g ${FM}>${MT(180, y + 1, 13, nm, n.soft)}${MT(380, y + 4, 18, t, ink, "end")}</g>`;
+    });
+    return `<rect x="16" y="10" width="368" height="92" fill="${yel}"/><rect x="22" y="16" width="356" height="80" fill="none" stroke="${dk}" stroke-width="2"/>` +
+      `<g ${FW}>${T(200, 62, 38, "NIGHT EXPRESS", dk, 330, "middle")}</g>` +
+      `<g ${FM}>${MT(36, 86, 14, "BKS 0101", dk)}${MT(200, 86, 14, "DAILY", dk, "middle")}${MT(364, 86, 14, "PF 04", dk, "end")}</g>` +
+      `<path d="M64 150V350" stroke="${ink}" stroke-width="5"/><path d="M64 150V350" stroke="${n.ko}" stroke-width="1.6" stroke-dasharray="6 6"/>` + s +
+      `<g ${FM}>${MT(16, 392, 15, "DEP 22:10 → ARR 06:20", ink)}${MT(384, 392, 15, "WINDOW 32", yel, "end")}</g>` +
+      `<path d="M16 372H384" stroke="${ink}" stroke-width="2"/>`;
+  }
+
+  /* hornok: truck-art back panel — arched frame, dotted borders, flowers, fringe */
+  function pHornok() {
+    const MG = "#ffb000", PK = "#e5197e", TL = "#0a8f8c", GR = "#2fa84f", RD = "#e2321f", BK = "#141414", WH = "#fffaf0";
+    const arch = (x0, y0, x1, y1, h) => `M${x0} ${y1}V${y0 + h}Q${x0} ${y0} 200 ${y0}Q${x1} ${y0} ${x1} ${y0 + h}V${y1}Z`;
+    // dotted flower: a ring of round dashes (petals) around a centre dot
+    const flower = (x, y, r, pc, cc) => `<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${pc}" stroke-width="${r * 1.1}" stroke-dasharray="0 ${r1(Math.PI * r / 3)}" stroke-linecap="round"/><circle cx="${x}" cy="${y}" r="${r * .45}" fill="${cc}"/>`;
+    let fringe = "", f2 = "";
+    for (let i = 0; i < 14; i++) { const x = 46 + i * 22; const d = `M${x} 362l11 22l11-22Z`; if (i % 2) f2 += d; else fringe += d; }
+    const lotus = `<path d="M200 44c-12 14-12 30 0 42c12-12 12-28 0-42ZM200 86c-16-2-30-12-34-28c16 0 28 10 34 28ZM200 86c16-2 30-12 34-28c-16 0-28 10-34 28Z" fill="${PK}" stroke="${BK}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    return `<path d="M58 362H342" stroke="${BK}" stroke-width="4"/><path d="${fringe}" fill="${MG}" stroke="${BK}" stroke-width="2" stroke-linejoin="round"/><path d="${f2}" fill="${PK}" stroke="${BK}" stroke-width="2" stroke-linejoin="round"/>` +
+      `<path d="${arch(40, 10, 360, 366, 90)}" fill="${BK}"/>` +
+      `<path d="${arch(52, 22, 348, 354, 82)}" fill="${RD}"/>` +
+      `<path d="${arch(52, 22, 348, 354, 82)}" fill="none" stroke="${MG}" stroke-width="8" stroke-dasharray="10 8"/>` +
+      `<path d="${arch(66, 36, 334, 340, 72)}" fill="${TL}" stroke="${BK}" stroke-width="3"/>` +
+      `<path d="${arch(74, 44, 326, 332, 66)}" fill="none" stroke="${WH}" stroke-width="2.5" stroke-dasharray="0 9" stroke-linecap="round"/>` +
+      // top arch: lotus + highway wisdom
+      lotus + flower(130, 82, 9, MG, PK) + flower(270, 82, 9, MG, PK) +
+      `<path d="M84 104H316" stroke="${MG}" stroke-width="4"/><path d="M84 112H316" stroke="${BK}" stroke-width="2"/>` +
+      // lettering with offset 3D shadow
+      `<g ${FW} stroke-linejoin="round">` +
+      T(204, 194, 84, "HORN", PK, 236, "middle", ` stroke="${BK}" stroke-width="6" paint-order="stroke"`) +
+      T(200, 190, 84, "HORN", MG, 236, "middle", ` stroke="${BK}" stroke-width="3" paint-order="stroke"`) +
+      T(203, 324, 54, "PLEASE", RD, 236, "middle", ` stroke="${BK}" stroke-width="6" paint-order="stroke"`) +
+      T(200, 321, 54, "PLEASE", WH, 236, "middle", ` stroke="${BK}" stroke-width="3" paint-order="stroke"`) + `</g>` +
+      // OK medallion flanked by flowers
+      `<circle cx="200" cy="238" r="38" fill="${GR}" stroke="${BK}" stroke-width="3"/>` +
+      `<circle cx="200" cy="238" r="30" fill="none" stroke="${MG}" stroke-width="6" stroke-dasharray="0 10.5" stroke-linecap="round"/>` +
+      `<g ${FW}>${T(200, 250, 32, "OK", WH, 46, "middle", ` stroke="${BK}" stroke-width="2.5" paint-order="stroke"`)}</g>` +
+      flower(120, 238, 13, PK, MG) + flower(280, 238, 13, PK, MG) + flower(92, 238, 6, MG, WH) + flower(308, 238, 6, MG, WH) +
+      `<path d="M138 238H158M242 238H262" stroke="${MG}" stroke-width="4" stroke-linecap="round"/>` +
+      `<g ${FM}>${MT(200, 128, 11, "USE DIPPER AT NIGHT", WH, "middle", .12)}${MT(200, 336, 10, "DROP 01 · BHAKSHI", MG, "middle", .12)}</g>`;
+  }
+
+  const PRINTS = { logo: pLogo, core: pCore, monsoon: pMonsoon, chai: (n, k, side) => side === "front" ? pChaiGlass(n) : pChaiTicket(n, k),
+    express: pExpress, hornok: pHornok };
+  // where a print sits on each top: logo = small left-chest, chest = centre front, back = big panel  [cx, cy, scale]
+  const PLACE = {
+    tee:    { logo: [250, 168, .14], chest: [200, 214, .38], back: [200, 238, .54] },
+    polo:   { logo: [252, 166, .12], chest: [200, 236, .3],  back: [200, 230, .44] },
+    shirt:  { logo: [244, 186, .08], chest: [244, 186, .08], back: [200, 236, .46] },
+    camp:   { logo: [244, 214, .08], chest: [244, 214, .08], back: [200, 240, .48] },
+    kurta:  { logo: [246, 160, .1],  chest: [246, 160, .1],  back: [200, 240, .46] },
+    hoodie: { logo: [250, 182, .13], chest: [200, 204, .3],  back: [200, 250, .42] },
+    jacket: { logo: [250, 170, .12], chest: [250, 170, .12], back: [200, 236, .44] }
+  };
+  // markup for print `name` placed on the garment (side = front/back), or ""
+  function printOn(shape, name, side, col, k) {
+    const pl = PLACE[shape], fn = PRINTS[name];
+    if (!pl || !fn) return "";
+    const [x, y, s] = name === "logo" ? (side === "back" ? [200, 132, .12] : pl.logo) : side === "back" ? pl.back : pl.chest;
+    return `<g transform="translate(${x} ${y}) scale(${s}) translate(-200 -200)" opacity=".96">${fn(inks(col), k + "q", side)}</g>`;
+  }
+  const printsOf = p => {
+    const pr = p.print && typeof p.print === "object" ? p.print : {};
+    return { front: PRINTS[pr.front] ? pr.front : "", back: PRINTS[pr.back] ? pr.back : "" };
+  };
+
+
   /* ---------- registry + variant detection ---------- */
+  const FRAME = { shorts: [200, 240, 1.22, 228], tee: [200, 258, .93, 258] };   // [tx, ty, scale, pivotY]
+  // map a point in a shape's drawing space to the framed 400×500 space
+  const framed = (shape, x, y) => { const f = FRAME[shape]; return f ? [f[0] + (x - 200) * f[2], f[1] + (y - f[3]) * f[2]] : [x, y]; };
   const DRAW = { tee, polo, shirt, camp, kurta, hoodie, jacket, pants, shorts: (c, v, o) => pants(c, v, { ...o, shorts: true }) };
   function variant(p) {
     const s = `${p.id || ""} ${p.name || ""} ${p.fit || ""} ${p.fabric || ""}`;
     return {
-      over: /oversiz|drop/i.test(s), bd: /oxford|button-down/i.test(s), formal: /formal|wrinkle/i.test(s),
+      over: /oversiz|drop|boxy/i.test(s), bd: /oxford|button-down/i.test(s), formal: /formal|wrinkle/i.test(s),
       short: /short kurta|short-kurta/i.test(s), zip: /zip/i.test(s), slim: /slim|taper/i.test(s),
       relaxed: /relaxed|straight/i.test(s), jogger: /jogger|track/i.test(s), cargo: /cargo/i.test(s),
       track: /track/i.test(s), crease: /formal|suiting/i.test(s)
     };
   }
 
-  /* ---------- layer one garment: defs + shadow + fill + shading + details ---------- */
+  /* ---------- layer one garment: defs + shadow + fill + print + shading + rim light + details ---------- */
   function layer(p, shape, view, k, o) {
     const c = ctx(p, k);
     const texFn = TEX[c.fab] || TEX.cotton, tex = texFn(k + "t", c);
     c.texOn = !!tex; c.sts = [];
     const g = DRAW[shape](c, view, o);
-    const grow = shape === "shorts" ? ["<g transform=\"translate(200 240) scale(1.22) translate(-200 -228)\">", "</g>"] : ["", ""];
+    // per-shape framing: shorts grow to fill the frame, tees shrink a touch for studio breathing room
+    const fr = FRAME[shape], grow = fr ? [`<g transform="translate(${fr[0]} ${fr[1]}) scale(${fr[2]}) translate(-200 ${-fr[3]})">`, "</g>"] : ["", ""];
     const parts = g.parts.map(x => typeof x === "string" ? { d: x } : x);
     const uses = f => parts.map((x, i) => `<use href="#${k}p${i}"${f ? f(x) : ""}/>`).join("");
-    const lightBoost = c.light ? 1.35 : 1;
-    const so = (a) => r1(a * lightBoost * 100) / 100;
+    const so = a => op(a * (c.light ? 1.35 : c.dark ? .8 : 1));
+    // print (only tops have placements); drawn under the shading so folds + knit run across the ink
+    const pr = printsOf(p), side = view === "back" ? "back" : "front";
+    const ink = printOn(shape, pr[side], side, c.base, k);
     const sheen = c.fab === "nylon"
       ? `<linearGradient id="${k}w" x1="80" y1="60" x2="320" y2="440" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".3" stop-color="#fff" stop-opacity=".02"/><stop offset=".5" stop-color="#fff" stop-opacity=".12"/><stop offset=".75" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".18"/></linearGradient>`
-      : `<linearGradient id="${k}w" x1="0" y1="60" x2="0" y2="460" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="${so(.12)}"/></linearGradient>`;
+      : `<linearGradient id="${k}w" x1="0" y1="70" x2="0" y2="460" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="${c.dark ? .07 : .09}"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="${so(.2)}"/></linearGradient>`;
     const defs = parts.map((x, i) => `<path id="${k}p${i}" d="${x.d}"/>`).join("") +
       `<clipPath id="${k}c">${uses()}</clipPath>` +
-      `<linearGradient id="${k}v" x1="60" x2="340" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#000" stop-opacity="${so(.16)}"/><stop offset=".24" stop-color="#fff" stop-opacity=".1"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset=".8" stop-color="#000" stop-opacity="${so(.05)}"/><stop offset="1" stop-color="#000" stop-opacity="${so(.2)}"/></linearGradient>` +
-      sheen + tex + unitButton(k) +
-      `<radialGradient id="${k}h" cx="168" cy="190" r="170" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="${c.dark ? .09 : .13}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
-      `<filter id="${k}b" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="3.4"/></filter>` +
-      `<filter id="${k}s" x="-15%" y="-15%" width="130%" height="130%"><feGaussianBlur stdDeviation="7"/></filter>`;
+      `<linearGradient id="${k}v" x1="30" x2="370" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#000" stop-opacity="${so(.26)}"/><stop offset=".26" stop-color="#fff" stop-opacity="${c.dark ? .05 : .07}"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset=".78" stop-color="#000" stop-opacity="${so(.06)}"/><stop offset="1" stop-color="#000" stop-opacity="${so(.3)}"/></linearGradient>` +
+      sheen + tex + (c.fab === "jersey" ? WASH(k + "x", c) : "") + (g.top.includes(`#${k}B`) ? unitButton(k) : "") +
+      `<radialGradient id="${k}h" cx="176" cy="200" r="190" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="${c.dark ? .08 : c.light ? .2 : .12}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
+      // rim light: key light from top-left, wrapping the silhouette edge
+      `<linearGradient id="${k}r" x1="40" y1="60" x2="360" y2="470" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="${c.rim}"/><stop offset=".55" stop-color="#fff" stop-opacity="${op(c.rim * .5)}"/><stop offset="1" stop-color="#fff" stop-opacity="${op(c.rim * .25)}"/></linearGradient>` +
+      `<filter id="${k}b" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="${c.light ? 5.5 : 3.8}"/></filter>` +
+      `<filter id="${k}e"><feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="b"/><feComposite in="SourceGraphic" in2="b" operator="out"/></filter>` +
+      `<mask id="${k}m" maskUnits="userSpaceOnUse" x="-50" y="-50" width="500" height="600"><rect x="-50" y="-50" width="500" height="600" fill="url(#${k}r)"/></mask>` +
+      `<filter id="${k}s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="9"/></filter>`;
     const body = grow[0] +
-      `<g transform="translate(5 9)" fill="#4a3725" opacity="${c.light ? .26 : .2}" filter="url(#${k}s)">${uses()}</g>` +
-      `<g stroke="${c.line}" stroke-width="1.3" stroke-linejoin="round">${uses(x => ` fill="${x.f || c.base}"`)}</g>` +
-      `<g clip-path="url(#${k}c)"><rect width="400" height="500" fill="url(#${k}v)"/><rect width="400" height="500" fill="url(#${k}w)"/><rect width="400" height="500" fill="url(#${k}h)"/>` +
+      `<g transform="translate(0 10)" fill="#000" opacity=".5" filter="url(#${k}s)">${uses()}</g>` +
+      `<g stroke="${c.line}" stroke-width="1.2" stroke-linejoin="round">${uses(x => ` fill="${x.f || c.base}"`)}</g>` +
+      `<g clip-path="url(#${k}c)">${ink}<rect width="400" height="500" fill="url(#${k}v)"/><rect width="400" height="500" fill="url(#${k}w)"/><rect width="400" height="500" fill="url(#${k}h)"/>` +
       (tex ? `<rect width="400" height="500" fill="url(#${k}t)"/>` : "") +
-      `<g filter="url(#${k}b)"${c.light ? ` opacity=".6"` : ""}>${g.folds}</g></g>` + g.top +
+      (c.fab === "jersey" ? `<rect width="400" height="500" fill="url(#${k}x)"/>` : "") +
+      `<g filter="url(#${k}b)" fill="none" stroke-linecap="round"${c.dark && !g.hl ? ` opacity=".6"` : ""}>${g.folds}${g.hl || ""}</g></g>` +
+      `<g mask="url(#${k}m)"><g filter="url(#${k}e)" fill="#fff">${uses()}</g></g>` + g.top +
       (c.sts.length ? L(c.sts.join(""), c.stitch, 1.1, ` stroke-dasharray="3 2.2" stroke-linecap="round"`) : "") + grow[1];
     return { defs, body };
   }
@@ -484,42 +745,61 @@ const Art = (() => {
       body: `<g transform="translate(161 66) scale(.7) rotate(2 200 260)">${b.body}</g><g transform="translate(-21 80) scale(.7) rotate(-2 200 250)">${a.body}</g>`
     };
   }
+  const shapeOf = p => (DRAW[p.shape] || p.shape === "coord") ? p.shape : "tee";
   function layersFor(p, view, k) {
-    const shape = (DRAW[p.shape] || p.shape === "coord") ? p.shape : "tee";
+    const shape = shapeOf(p);
     if (shape === "coord") return coordLayers(p, view, k);
     return layer(p, shape, view, k, variant(p));
   }
 
-  /* ---------- backdrop ---------- */
+  /* ---------- dark studio backdrop: near-black sweep, soft spotlight, floor shadow ---------- */
   const backdrop = k =>
-    `<radialGradient id="${k}bg" cx="200" cy="200" r="380" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f9f5ee"/><stop offset=".7" stop-color="#f3ece1"/><stop offset="1" stop-color="#ebe2d3"/></radialGradient>` +
-    `<radialGradient id="${k}fl" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#6b5236" stop-opacity=".1"/><stop offset="1" stop-color="#6b5236" stop-opacity="0"/></radialGradient>`;
-  const backdropBody = k =>
-    `<rect x="-400" y="-300" width="1200" height="1100" fill="url(#${k}bg)"/><ellipse cx="205" cy="462" rx="170" ry="22" fill="url(#${k}fl)"/>`;
+    `<linearGradient id="${k}bg" x1="0" y1="0" x2="0" y2="500" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#121212"/><stop offset="1" stop-color="#0d0d0d"/></linearGradient>` +
+    `<radialGradient id="${k}sp" cx="200" cy="215" r="300" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".13"/><stop offset=".45" stop-color="#fff" stop-opacity=".055"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>` +
+    `<radialGradient id="${k}fl" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#000" stop-opacity=".7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>`;
+  const backdropBody = (k, fy = 452) =>
+    `<rect x="-400" y="-300" width="1200" height="1100" fill="url(#${k}bg)"/><rect x="-400" y="-300" width="1200" height="1100" fill="url(#${k}sp)"/>` +
+    `<ellipse cx="200" cy="${fy}" rx="190" ry="20" fill="url(#${k}fl)"/>`;
+  const FLOOR = { tee: 442, pants: 476, shorts: 440, kurta: 472, coord: 462 };
 
-  const svgOpen = label =>
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" preserveAspectRatio="xMidYMid meet" width="100%" height="100%" role="img" aria-label="${escA(label)}">`;
+  const svgOpen = (label, vb = "0 0 400 500") =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" width="100%" height="100%" role="img" aria-label="${escA(label)}">`;
 
   // close-up crop focus per shape: [cx, cy, zoom]
-  const FOCUS = { tee: [200, 130, 2.3], polo: [200, 144, 2.2], shirt: [214, 150, 2.1], kurta: [200, 136, 2.3],
+  const FOCUS = { tee: [214, 140, 2.4], polo: [200, 144, 2.2], shirt: [214, 150, 2.1], kurta: [200, 136, 2.3],
     hoodie: [200, 150, 2], jacket: [212, 140, 2], pants: [196, 122, 2], shorts: [196, 170, 2], coord: [121, 168, 2.6] };
+  // detail view: close-up on the hero graphic (back panel if any), else on the chest / neck label
+  function detailPlan(p) {
+    const shape = shapeOf(p), pl = PLACE[shape], pr = printsOf(p);
+    const at = (x, y, z) => [...framed(shape, x, y), z * (FRAME[shape] && shape !== "shorts" ? 1 / FRAME[shape][2] : 1)];
+    if (pl && pr.back && pr.back !== "logo") return { view: "back", f: at(pl.back[0], pl.back[1] - 14, 1.55) };
+    if (pl && pr.front && pr.front !== "logo") return { view: "front", f: at(pl.chest[0], pl.chest[1] - 18, 1.9) };
+    if (pl && pr.front === "logo") return { view: "front", f: at((200 + pl.logo[0]) / 2 + 6, (110 + pl.logo[1]) / 2, 2.5) };
+    return { view: "front", f: shape === "tee" ? at(214, 140, 2.4) : FOCUS[shape] || FOCUS.tee };
+  }
 
   /* ---------- public: single garment ---------- */
   function garment(p, opts = {}) {
     p = p || {};
     const bg = opts.bg !== false, view = ["front", "back", "detail"].includes(opts.view) ? opts.view : "front";
-    const k = nextId();
-    const L1 = layersFor(p, view === "back" ? "back" : "front", k);
-    let art = L1.body;
-    let extra = "";
+    const k = nextId(), plan = view === "detail" ? detailPlan(p) : { view };
+    const L1 = layersFor(p, plan.view === "back" ? "back" : "front", k);
+    let art = L1.body, extra = "";
     if (view === "detail") {
-      const [cx, cy, z] = FOCUS[p.shape] || FOCUS.tee;
+      const [cx, cy, z] = plan.f;
       extra = `<clipPath id="${k}z"><rect width="400" height="500"/></clipPath>`;
       art = `<g clip-path="url(#${k}z)"><g transform="translate(200 250) scale(${z}) translate(${-cx} ${-cy})">${art}</g></g>`;
     }
-    const label = (p.name || "Garment") + (view === "back" ? " (back view)" : view === "detail" ? " (detail)" : "");
+    const label = (p.name || "Garment") + (view === "back" ? " (back view)" : view === "detail" ? " (print detail)" : "");
     return svgOpen(label) + `<defs>${bg ? backdrop(k) : ""}${L1.defs}${extra}</defs>` +
-      (bg ? backdropBody(k) : "") + art + `</svg>`;
+      (bg ? backdropBody(k, FLOOR[shapeOf(p)]) : "") + art + `</svg>`;
+  }
+
+  /* ---------- public: just the graphic (400×400, transparent) ---------- */
+  function print(name, opts = {}) {
+    const fn = PRINTS[name], k = nextId();
+    return svgOpen(`${name || "Blank"} print`, "0 0 400 400") +
+      (fn ? fn(inks(opts.color || "#141414"), k, opts.side === "front" ? "front" : "back") : "") + `</svg>`;
   }
 
   /* ---------- public: outfit flat-lay (top over bottom) ---------- */
@@ -534,21 +814,21 @@ const Art = (() => {
     const bt = bShorts ? "translate(96 169) scale(.52) rotate(3 200 240)" : "translate(80 186) scale(.6) rotate(3 200 260)";
     const tt = `translate(${longTop ? 66 : 68} ${longTop ? -8 : 2}) scale(${longTop ? .67 : .66}) rotate(-3 200 250)`;
     return svgOpen(`Outfit: ${top.name || ""} with ${bottom.name || ""}`) +
-      `<defs>${bg ? backdrop(k) : ""}${b.defs}${t.defs}</defs>` + (bg ? backdropBody(k) : "") +
+      `<defs>${bg ? backdrop(k) : ""}${b.defs}${t.defs}</defs>` + (bg ? backdropBody(k, 470) : "") +
       `<g transform="${bt}">${b.body}</g><g transform="${tt}">${t.body}</g></svg>`;
   }
 
-  /* ---------- public: colour swatch ---------- */
+  /* ---------- public: colour swatch (reads on the dark UI) ---------- */
   function swatch(color) {
-    const k = nextId(), base = normHex(color), light = hexToHsl(base)[2] > .8;
+    const k = nextId(), base = normHex(color), l = hexToHsl(base)[2];
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">` +
-      `<defs><radialGradient id="${k}s" cx=".34" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".22"/></radialGradient>` +
-      `<pattern id="${k}t" width="2" height="2" patternUnits="userSpaceOnUse" patternTransform="rotate(-40)"><path d="M0 .5H2" stroke="#fff" stroke-opacity=".12" stroke-width=".6"/></pattern></defs>` +
+      `<defs><radialGradient id="${k}s" cx=".34" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".28"/></radialGradient>` +
+      `<pattern id="${k}t" width="2" height="2" patternUnits="userSpaceOnUse"><path d="M0 0L.5 1L1 0M1 1L1.5 2L2 1" fill="none" stroke="#000" stroke-opacity=".14" stroke-width=".35"/></pattern></defs>` +
       `<circle cx="12" cy="12" r="11" fill="${base}"/><circle cx="12" cy="12" r="11" fill="url(#${k}t)"/><circle cx="12" cy="12" r="11" fill="url(#${k}s)"/>` +
-      `<circle cx="12" cy="12" r="11.2" fill="none" stroke="#15120f" stroke-opacity="${light ? .28 : .14}" stroke-width=".8"/></svg>`;
+      `<circle cx="12" cy="12" r="11.1" fill="none" stroke="#fff" stroke-opacity="${l < .3 ? .34 : .16}" stroke-width=".9"/></svg>`;
   }
 
   // Legacy: SHAPES maps each shape name to its drawing function (kept for compatibility)
   const SHAPES = { ...DRAW, coord: coordLayers };
-  return { garment, outfit, swatch, shade, SHAPES };
+  return { garment, print, outfit, swatch, shade, SHAPES, PRINTS: Object.keys(PRINTS) };
 })();

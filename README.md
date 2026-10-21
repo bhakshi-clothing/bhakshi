@@ -1,4 +1,4 @@
-# BHAKSHI — Men's Clothing Store
+# BHAKSHI — Streetwear Drop Store
 
 A complete online store that costs **₹0/month** to run.
 Customers browse, add to bag, and check out. The order arrives in **your WhatsApp**, and they pay by **UPI** or **Cash on Delivery**.
@@ -10,7 +10,7 @@ Customers browse, add to bag, and check out. The order arrives in **your WhatsAp
 Open `js/products.js` in any text editor (VS Code, or even TextEdit) and change the top section:
 
 ```js
-whatsapp: "919999999999",   // ← your WhatsApp number: 91 + 10 digits, no spaces or +
+whatsapp: "919876543210",   // ← your WhatsApp number: 91 + 10 digits, no spaces or + (checkout is off until set)
 upi: "yourname@upi",        // ← your UPI ID (from GPay / PhonePe / Paytm)
 email: "hello@bhakshi.in",
 instagram: "https://instagram.com/yourhandle",
@@ -18,25 +18,33 @@ instagram: "https://instagram.com/yourhandle",
 
 **This is the only file you need to edit.** Everything else updates automatically.
 
-## 2. Add or edit products
+## 2. Your drop, your products
 
-In the same file, each product looks like this:
+The store is set up for **Drop 01: 5 oversized graphic tees**. Each product looks like this:
 
 ```js
-{ id: "oxford-shirt-sky", family: "oxford-shirt", colorName: "Sky Blue", fit: "Regular", fabric: "100% Cotton Oxford",
-  name: "Oxford Button-Down Shirt — Sky Blue", category: "shirts", price: 1199, mrp: 1899,
-  color: "#9fbfdc", shape: "shirt", sizes: ["S","M","L","XL","XXL"], tags: ["bestseller","office"], stock: 30,
-  images: [], desc: "..." },
+{ id: "core-tee-black", family: "core-tee", colorName: "Jet Black", fit: "Oversized", fabric: "100% Cotton, 240 GSM, bio-washed",
+  name: "Core Tee", category: "tshirts", price: 899, mrp: 899,
+  color: "#141414", shape: "tee", print: { front: "logo", back: "core" },
+  sizes: ["S","M","L","XL","XXL"], tags: ["new","bestseller"], stock: 48, edition: 60, images: [], desc: "..." },
 ```
 
-- **Adding real photos:** put photos in the `images/` folder and list them, e.g.
-  `images: ["images/oxford-sky-front.jpg", "images/oxford-sky-back.jpg"]`.
-  Until you add photos, the site shows a drawn illustration of the garment instead.
-  Use portrait photos (4:5, e.g. 1200×1500), saved as JPG/WebP under ~300 KB each.
-- **Selling out:** set `stock: 0` to show "Sold Out".
-- **Colour options:** give products the same `family` to show them as colour swatches of each other.
-- **Where products appear:** `tags` decide this. `new` puts a product in New In, `bestseller` in Bestsellers, and `sale` in Sale. The occasion tags are `office`, `casual`, `athleisure` and `festive`.
-- **Discount codes:** add them in `coupons: { BHAKSHI10: 10 }`, which means 10% off.
+- **Real photos:** put them in the `images/` folder and list them as front, then back, e.g.
+  `images: ["images/core-front.jpg", "images/core-back.jpg"]`. Until you add photos, the site draws the tee
+  with its print. Use portrait photos (4:5, e.g. 1200×1500), JPG/WebP under ~300 KB each.
+- **Limited stock:** `stock` is units left and `edition` is units made, so the site shows "12 / 40 LEFT".
+  Set `stock: 0` for Sold Out.
+- **Price:** if `mrp` equals `price`, no discount is shown. Set `mrp` higher to show a struck-out price.
+- **Discount codes:** `coupons: { BHAKSHI10: 10 }` means 10% off.
+
+### Countdown to a drop
+Set `drop.launch` to a date and time, e.g. `launch: "2026-11-01T19:00:00+05:30"`. The site then shows a live
+countdown and locks buying until that moment. `launch: null` means the drop is live.
+
+### Mix & Match (switched off for now)
+The outfit builder, where customers pick a top and bottoms together, is built but hidden. When you start selling jeans,
+joggers or other bottoms, add them as products and set `features: { mixAndMatch: true }`.
+Menus also grow by themselves: a new category appears in the menu as soon as it has a product.
 
 ## 3. Try it on your computer
 
@@ -75,8 +83,8 @@ type your domain, and follow the DNS instructions GitHub shows. HTTPS is free.
 
 ## Before you launch, check these
 - [ ] WhatsApp number and UPI ID set in `js/products.js` (checkout is switched off until the WhatsApp number is set)
-- [ ] Real products, prices and photos added
-- [ ] Sample customer testimonials on the home page **replaced with real reviews**. Showing made-up reviews isn't allowed under Indian consumer rules.
+- [ ] Real tee names, prices, stock and photos in `js/products.js` (the 5 current tees are placeholder designs)
+- [ ] Garment measurements on the home page size diagram (`SPEC_CHART` at the top of `js/home.js`) and the product size chart checked against your real tees
 - [ ] Policies page (`policies.html`) reviewed and edited to match how you actually run the business
 - [ ] For GST registration, invoicing and other legal requirements for your business, ask a CA
 
