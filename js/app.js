@@ -1,16 +1,17 @@
 /* =========================================================
-   BHAKSHI v2 — shell & shared API (see ARCHITECTURE.md)
-   Helpers · drop/stock helpers · stores (Cart / Wishlist / Recent) · product card ·
-   announcement ticker · header (+ mega menu when a group has 2+ live categories) ·
-   mobile menu · search · cart drawer · Modal · toast · flyToCart · reveal · tickers ·
-   countdowns · text scramble · custom cursor · page transitions · footer.
+   BHAKSHI v3 — shell & shared API (see ARCHITECTURE.md)
+   "Minimal craft streetwear": helpers · drop/stock helpers · stores (Cart + note / Wishlist / Recent) ·
+   product card · announcement · header + Shop mega panel · mobile drawer · search · cart drawer ·
+   Modal · toast · flyToCart · reveal · countdowns · footer · floating WhatsApp.
+   v2-only effects (cursor, scramble, tilt, tickers, magnetic) are kept as harmless no-ops.
    ========================================================= */
 document.documentElement.classList.add("js");
 
 /* ---------- Helpers ---------- */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const rupee = n => "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+/* Prices: "Rs. 899.00" / "Rs. 1,299.00" (en-IN grouping, 2 decimals) */
+const rupee = n => "Rs. " + (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const getProduct = id => (id && typeof id === "object") ? id : PRODUCTS.find(p => p.id === id);
 const catName = id => (CATEGORIES.find(c => c.id === id) || {}).name || id;
@@ -24,6 +25,11 @@ const productUrl = p => `product.html?id=${encodeURIComponent(p.id)}`;
 const titleOf = p => String(p.name).split(" — ")[0];
 const DROP = Object.assign({ number: "01", name: "", launch: null }, STORE.drop || {});
 const dropLabel = () => `Drop ${DROP.number}`;
+/* "Screen print +1" — first technique plus how many more ("" if none) */
+function techLabel(p) {
+  p = getProduct(p); const t = (p && Array.isArray(p.techniques) ? p.techniques : []).filter(Boolean);
+  return t.length ? t[0] + (t.length > 1 ? ` +${t.length - 1}` : "") : "";
+}
 
 /* WhatsApp link. With no number configured it falls back to a share link (wa.me/?text=). */
 const waNumber = () => String(STORE.whatsapp || "").replace(/\D/g, "");
@@ -36,7 +42,7 @@ function waLink(text = "") {
 const liveCategories = () => CATEGORIES.filter(c => PRODUCTS.some(p => p.category === c.id));
 const hasBottoms = () => PRODUCTS.some(p => groupOf(p) === "Bottoms" || ["pants", "shorts"].includes(p.shape));
 const mixMatchOn = () => !!(STORE.features && STORE.features.mixAndMatch) && hasBottoms();
-const LOW_STOCK = 15;
+const LOW_STOCK = 10;
 function stockInfo(p) {
   p = getProduct(p);
   if (!p) return { left: 0, total: 0, pct: 0, low: false, soldOut: true };
@@ -60,7 +66,7 @@ function formatCountdown(ms, short) {
 function buyBlockReason(p) {
   p = getProduct(p); if (!p) return "That product isn't available.";
   const d = dropState();
-  if (!d.live) return `${dropLabel()} unlocks in ${formatCountdown(d.msLeft, true)}. Hold tight.`;
+  if (!d.live) return `${dropLabel()} opens in ${formatCountdown(d.msLeft, true)}.`;
   if (stockInfo(p).soldOut) return `${titleOf(p)} is sold out.`;
   return "";
 }
@@ -82,7 +88,7 @@ function countdown(el, launchDate = DROP.launch) {
   if (!el) return () => {};
   const t = launchDate instanceof Date ? launchDate.getTime() : Date.parse(launchDate);
   el.classList.add("countdown"); el.dataset.cdBound = "1";
-  if (!isFinite(t)) { el.textContent = formatCountdown(0); return () => {}; }
+  if (!isFinite(t)) { el.textContent = formatCountdown(0, el.dataset.countdownFormat === "short"); return () => {}; }
   const c = { el, t, short: el.dataset.countdownFormat === "short", seen: el.isConnected };
   _cds.add(c); _cdTick();
   if (!_cdTimer && _cds.size) _cdTimer = setInterval(_cdTick, 1000);
@@ -99,42 +105,77 @@ function fireDropLive() {
   if (go) setTimeout(() => location.reload(), 900);
 }
 
+/* ---------- Images ---------- */
 function productImage(p, i = 0, view, opts = {}) {
   p = getProduct(p); if (!p) return "";
   const src = p.images && p.images[i];
-  if (src) return `<img src="${esc(src)}" alt="${esc(p.name)}${i ? " (view " + (i + 1) + ")" : ""}" loading="lazy" decoding="async">`;
+  if (src) return `<img src="${esc(src)}" alt="${esc(p.name)}${i ? " (view " + (i + 1) + ")" : ""}" loading="${opts.eager ? "eager" : "lazy"}" decoding="async">`;
   if (typeof Art !== "undefined" && Art.garment) {
     try { return Art.garment(p, { view: view || (i === 1 ? "back" : i >= 2 ? "detail" : "front"), bg: opts.bg }); } catch (e) { console.error(e); }
   }
   return `<div class="img-fallback" style="background:${esc(p.color)}" role="img" aria-label="${esc(p.name)}"></div>`;
 }
+const CAMPAIGN_SCENES = { hero: "flatlay", heroMobile: "flatlay", banner: "rail", story: "macro", newsletter: "stack" };
+const CAMPAIGN_RATIOS = { hero: "16:9", heroMobile: "3:4", banner: "16:9", story: "4:5", newsletter: "4:5" };
+/* Big editorial slots: owner photo (STORE.campaign[slot]) if set, else Art.campaign(scene). */
+function campaignImage(slot, opts = {}) {
+  const src = (STORE.campaign || {})[slot];
+  const alt = opts.alt != null ? String(opts.alt) : `${STORE.name} ${dropLabel()}${DROP.name ? " — " + DROP.name : ""}`;
+  if (src) return `<img src="${esc(src)}" alt="${esc(alt)}" loading="${opts.eager ? "eager" : "lazy"}" decoding="async">`;
+  const scene = opts.scene || CAMPAIGN_SCENES[slot] || "flatlay", ratio = opts.ratio || CAMPAIGN_RATIOS[slot] || "16:9";
+  if (typeof Art !== "undefined" && typeof Art.campaign === "function") {
+    try {
+      let svg = String(Art.campaign(scene, { ratio }) || "");
+      if (svg) {
+        const open = (svg.match(/<svg\b[^>]*>/) || [""])[0];
+        if (open && alt) {
+          let add = "";
+          if (!/\brole=/.test(open)) add += ' role="img"';
+          if (!/\baria-label=/.test(open)) add += ` aria-label="${esc(alt)}"`;
+          if (add) svg = svg.replace(/<svg\b/, "<svg" + add);
+        }
+        return svg;
+      }
+    } catch (e) { console.error(e); }
+  }
+  const sp = scene.startsWith("single:") ? getProduct(scene.slice(7)) : null;
+  const p = sp || PRODUCTS.find(x => (x.tags || []).includes("bestseller")) || PRODUCTS[0];
+  return `<div class="img-fallback campaign-fallback" role="img" aria-label="${esc(alt)}">${p ? productImage(p) : ""}</div>`;
+}
 function swatchHTML(color) {
   return (typeof Art !== "undefined" && Art.swatch) ? Art.swatch(color) : `<span class="swatch-dot" style="background:${esc(color)}"></span>`;
 }
 
+const _svg = (d, w = 20, sw = 1.3, vb = 24) => `<svg viewBox="0 0 ${vb} ${vb}" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="${sw}" aria-hidden="true">${d}</svg>`;
 const ICON = {
-  search: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2" stroke-linecap="square"/></svg>`,
-  heart: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 20.3s-7.8-4.6-7.8-10.3A4.4 4.4 0 0 1 12 7.4a4.4 4.4 0 0 1 7.8 2.6c0 5.7-7.8 10.3-7.8 10.3Z" stroke-linejoin="round"/></svg>`,
-  bag: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4.5 8h15l-1 12.5h-13z" stroke-linejoin="miter"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/></svg>`,
-  menu: `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 8h18M3 16h12"/></svg>`,
-  close: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>`,
-  arrow: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 12h15m-5-5 5 5-5 5" stroke-linejoin="miter"/></svg>`,
-  up: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg>`,
-  plus: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
-  minus: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14"/></svg>`,
-  eye: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>`,
-  check: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>`,
-  info: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11v6M12 7v1.5"/></svg>`,
-  alert: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 6v8M12 17v1.5"/></svg>`,
-  truck: `<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 8h16v14H3zM19 13h6l4 5v4H19"/><circle cx="9" cy="23.5" r="2.5" fill="var(--bg)"/><circle cx="24" cy="23.5" r="2.5" fill="var(--bg)"/></svg>`,
-  cash: `<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="9" width="26" height="15"/><circle cx="16" cy="16.5" r="3.5"/><path d="M7 13v7M25 13v7"/></svg>`,
-  swap: `<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 12h19l-5-5M26 20H7l5 5"/></svg>`,
-  fabric: `<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 7h24v18H4z"/><path d="M4 13h24M4 19h24M10 7v18M16 7v18M22 7v18" opacity=".55"/></svg>`,
-  india: `<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="3"/><path d="M16 5v8M16 19v8M5 16h8M19 16h8"/></svg>`,
-  truckSm: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 6.5h11v10h-11zM13.5 10h4l3 3.5v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>`,
-  ruler: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 15.5 15.5 3 21 8.5 8.5 21z"/><path d="m7 11.5 2 2M10 8.5l2 2M13 5.5l2 2"/></svg>`,
-  mail: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>`,
-  insta: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6" fill="currentColor"/></svg>`,
+  search: _svg(`<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>`),
+  heart: _svg(`<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z" stroke-linejoin="round"/>`),
+  bag: _svg(`<path d="M5 8.5h14l-1 12H6z" stroke-linejoin="round"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/>`),
+  menu: _svg(`<path d="M3.5 7.5h17M3.5 12h17M3.5 16.5h17"/>`, 22),
+  close: _svg(`<path d="m6 6 12 12M18 6 6 18"/>`),
+  arrow: _svg(`<path d="M4 12h15m-5-5 5 5-5 5"/>`, 16),
+  chevD: _svg(`<path d="m6 9 6 6 6-6"/>`, 14, 1.5),
+  chevL: _svg(`<path d="m15 6-6 6 6 6"/>`, 16, 1.5),
+  chevR: _svg(`<path d="m9 6 6 6-6 6"/>`, 16, 1.5),
+  up: _svg(`<path d="M12 19V5m-6 6 6-6 6 6"/>`, 18),
+  plus: _svg(`<path d="M12 5v14M5 12h14"/>`, 16, 1.4),
+  minus: _svg(`<path d="M5 12h14"/>`, 16, 1.4),
+  eye: _svg(`<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>`, 16),
+  check: _svg(`<path d="m5 12.5 4.5 4.5L19 7.5"/>`, 16, 1.6),
+  info: _svg(`<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.9"/>`, 16),
+  alert: _svg(`<circle cx="12" cy="12" r="9"/><path d="M12 7v6.5M12 16v1"/>`, 16),
+  lock: _svg(`<rect x="5" y="10.5" width="14" height="10"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>`, 16),
+  tape: _svg(`<path d="M3 15.5 15.5 3 21 8.5 8.5 21z"/><path d="m7 11.5 2 2M10 8.5l2 2M13 5.5l2 2"/>`, 16),
+  ruler: _svg(`<path d="M3 15.5 15.5 3 21 8.5 8.5 21z"/><path d="m7 11.5 2 2M10 8.5l2 2M13 5.5l2 2"/>`, 18),
+  gift: _svg(`<rect x="3.5" y="9" width="17" height="11.5"/><path d="M2.5 9h19M12 9v11.5M12 9S9.5 4 7.3 5.3C5.6 6.3 7.6 9 12 9Zm0 0s2.5-5 4.7-3.7C18.4 6.3 16.4 9 12 9Z"/>`, 18),
+  truck: _svg(`<path d="M3 8h16v14H3zM19 13h6l4 5v4H19"/><circle cx="9" cy="23.5" r="2.5"/><circle cx="24" cy="23.5" r="2.5"/>`, 26, 1.3, 32),
+  cash: _svg(`<rect x="3" y="9" width="26" height="15"/><circle cx="16" cy="16.5" r="3.5"/><path d="M7 13v7M25 13v7"/>`, 26, 1.3, 32),
+  swap: _svg(`<path d="M6 12h19l-5-5M26 20H7l5 5"/>`, 26, 1.3, 32),
+  fabric: _svg(`<path d="M4 7h24v18H4z"/><path d="M4 13h24M4 19h24M10 7v18M16 7v18M22 7v18" opacity=".55"/>`, 26, 1.3, 32),
+  india: _svg(`<circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="3"/><path d="M16 5v8M16 19v8M5 16h8M19 16h8"/>`, 26, 1.3, 32),
+  truckSm: _svg(`<path d="M2.5 6.5h11v10h-11zM13.5 10h4l3 3.5v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>`, 18),
+  mail: _svg(`<rect x="3" y="5.5" width="18" height="13"/><path d="m3.5 7 8.5 6 8.5-6"/>`, 18),
+  insta: _svg(`<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6" fill="currentColor"/>`, 18),
   wa: `<svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.6a10.6 10.6 0 0 1-5.4-1.5l-.4-.2-3.9 1 1-3.8-.2-.4A10.6 10.6 0 1 1 16 26.6zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7 0a8.7 8.7 0 0 1-4.3-3.8c-.3-.6.3-.5 1-1.7.1-.2 0-.4 0-.5l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.7 3.7 0 0 0-1.1 2.7 6.4 6.4 0 0 0 1.3 3.4 14.7 14.7 0 0 0 5.6 5c2.1.9 2.9 1 4 .8a3.4 3.4 0 0 0 2.2-1.6 2.8 2.8 0 0 0 .2-1.6c-.1-.1-.3-.2-.6-.4z"/></svg>`
 };
 
@@ -146,7 +187,7 @@ const _store = {
 const _emit = (name, detail) => document.dispatchEvent(new CustomEvent(name, { detail }));
 
 const Cart = {
-  KEY: "bhakshi_cart", MAX: 10,
+  KEY: "bhakshi_cart", NOTE_KEY: "bhakshi_cart_note", MAX: 10,
   get() {
     const raw = _store.read(this.KEY, []);
     return Array.isArray(raw) ? raw.filter(i => i && getProduct(i.id) && +i.qty > 0).map(i => ({ ...i, qty: Math.floor(+i.qty) })) : [];
@@ -161,12 +202,12 @@ const Cart = {
     const p = getProduct(id); if (!p) return false;
     if (!isBuyable(p)) { if (!opts.silent) toast(buyBlockReason(p), { type: "error" }); return false; }
     if (p.sizes && p.sizes.length && (size == null || size === "" || !p.sizes.map(String).includes(String(size)))) {
-      if (!opts.silent) toast("Pick a size first.", { type: "error" }); return false;
+      if (!opts.silent) toast("Please choose a size.", { type: "error" }); return false;
     }
     qty = Math.max(1, parseInt(qty, 10) || 1);
     const items = this.get(), max = this.limit(p.id);
     let line = items.find(i => i.id === p.id && String(i.size) === String(size));
-    if (line && line.qty >= max) { if (!opts.silent) toast(`Max ${max} of ${titleOf(p)} per order.`, { type: "info" }); return line; }
+    if (line && line.qty >= max) { if (!opts.silent) toast(`Maximum ${max} of ${titleOf(p)} per order.`, { type: "info" }); return line; }
     if (line) line.qty = Math.min(max, line.qty + qty);
     else items.push(line = { id: p.id, size, qty: Math.min(max, qty) });
     this.save(items, { action: "add", id: p.id, size, qty });
@@ -185,11 +226,20 @@ const Cart = {
     return line;
   },
   insert(index, line) { const items = this.get(); items.splice(Math.min(index, items.length), 0, line); this.save(items, { action: "add", id: line.id }); },
-  clear() { this.save([], { action: "clear" }); },
+  clear() { _store.write(this.NOTE_KEY, { gift: false, note: "" }); this.save([], { action: "clear" }); _emit("cart:note", this.note()); },
   lines() { return this.get().map((i, index) => ({ ...i, index, p: getProduct(i.id) })); },
   subtotal() { return this.lines().reduce((s, l) => s + l.p.price * l.qty, 0); },
   count() { return this.get().reduce((s, i) => s + i.qty, 0); },
-  has(id) { return this.get().some(i => i.id === id); }
+  has(id) { return this.get().some(i => i.id === id); },
+  /* Gift flag + order note → { gift: bool, note: string } (saved in localStorage "bhakshi_cart_note") */
+  note() {
+    const v = _store.read(this.NOTE_KEY, null);
+    return { gift: !!(v && v.gift), note: v && typeof v.note === "string" ? v.note.slice(0, 500) : "" };
+  },
+  setNote(obj = {}) {
+    const cur = this.note(), next = { gift: "gift" in obj ? !!obj.gift : cur.gift, note: "note" in obj ? String(obj.note || "").slice(0, 500) : cur.note };
+    _store.write(this.NOTE_KEY, next); _emit("cart:note", next); return next;
+  }
 };
 
 const Wishlist = {
@@ -226,57 +276,65 @@ const Recent = {
 /* Cross-tab sync */
 addEventListener("storage", e => {
   if (e.key === Cart.KEY) _emit("cart:change", { items: Cart.get(), count: Cart.count(), subtotal: Cart.subtotal(), action: "sync" });
+  if (e.key === Cart.NOTE_KEY) _emit("cart:note", Cart.note());
   if (e.key === Wishlist.KEY) _emit("wishlist:change", { items: Wishlist.get(), count: Wishlist.count(), action: "sync" });
 });
 
 const uniqueFamilies = (list, n) => { const seen = new Set(), out = []; list.forEach(p => { const f = p.family || p.id; if (out.length < n && !seen.has(f)) { seen.add(f); out.push(p); } }); return out; };
 const rankProduct = p => (isBuyable(p) ? 10 : 0) + ((p.tags || []).includes("bestseller") ? 2 : 0) + ((p.tags || []).includes("new") ? 1 : 0);
 
-/* ---------- Stock meter & product card ---------- */
+/* ---------- Stock note & product card ---------- */
+/* v3 has no meters: a quiet text line ("Only 9 left" / "Sold out"), empty when stock is healthy. */
 function stockMeter(p, opts = {}) {
   const s = stockInfo(p);
-  const label = s.soldOut ? "Sold out" : s.total ? `${pad2(s.left)} / ${pad2(s.total)} left` : `${pad2(s.left)} left`;
-  const aria = s.soldOut ? "Sold out" : s.total ? `${s.left} of ${s.total} left` : `${s.left} left`;
-  return `<div class="stock-meter${s.low ? " is-low" : ""}${s.soldOut ? " is-out" : ""}${opts.className ? " " + esc(opts.className) : ""}" style="--pct:${s.pct}%" role="img" aria-label="${esc(aria)}"><span class="stock-meter-bar" aria-hidden="true"><i></i></span><span class="stock-meter-label" aria-hidden="true">${esc(label)}</span></div>`;
+  const txt = s.soldOut ? "Sold out" : s.low ? `Only ${s.left} left` : (opts.always ? "In stock" : "");
+  return txt ? `<p class="stock-note${s.low ? " is-low" : ""}${s.soldOut ? " is-out" : ""}${opts.className ? " " + esc(opts.className) : ""}">${esc(txt)}</p>` : "";
 }
 function cardArt(p, view) {
   if (p.images && p.images.length) {
     const i = view === "back" ? 1 : 0;
     return p.images[i] ? productImage(p, i) : "";
   }
-  return productImage(p, 0, view, { bg: false });
+  return productImage(p, 0, view);
+}
+function priceHTML(p, cls = "card-price") {
+  const off = discount(p);
+  return `<p class="${cls} price"><span class="price-now">${rupee(p.price)}</span>${off > 0 ? ` <s class="price-mrp"><span class="sr-only">MRP </span>${rupee(p.mrp)}</s>` : ""}</p>`;
 }
 function productCard(p) {
   p = getProduct(p); if (!p) return "";
   const id = esc(p.id), url = productUrl(p), s = stockInfo(p), d = dropState(), off = discount(p), wished = Wishlist.has(p.id), buy = isBuyable(p);
-  const tags = p.tags || [], n = PRODUCTS.indexOf(p);
-  const badge = s.soldOut ? `<span class="badge badge-ghost">Sold out</span>`
-    : s.low ? `<span class="badge badge-hot">Low stock</span>`
-    : tags.includes("new") ? `<span class="badge badge-accent">New</span>`
-    : tags.includes("bestseller") ? `<span class="badge">Bestseller</span>`
-    : tags.includes("sale") && off ? `<span class="badge badge-hot">Sale</span>` : "";
+  const tags = p.tags || [], name = titleOf(p), tech = techLabel(p);
+  const badge = s.soldOut ? `<span class="badge card-badge is-out">Sold out</span>`
+    : off > 0 && tags.includes("sale") ? `<span class="badge card-badge is-sale">Sale</span>`
+    : tags.includes("new") ? `<span class="badge card-badge">New</span>`
+    : off > 0 ? `<span class="badge card-badge is-sale">Sale</span>` : "";
   const back = cardArt(p, "back");
   const vars = variantsOf(p);
   const swatches = vars.length > 1 ? `<div class="card-swatches" aria-label="${vars.length} colours">${vars.slice(0, 5).map(v =>
     `<a class="swatch${v.id === p.id ? " is-current" : ""}" href="${productUrl(v)}" title="${esc(v.colorName)}" aria-label="${esc(v.colorName)}"${v.id === p.id ? ' aria-current="true"' : ""}>${swatchHTML(v.color)}</a>`).join("")}${vars.length > 5 ? `<span class="swatch-more">+${vars.length - 5}</span>` : ""}</div>` : "";
-  const sizes = buy
-    ? `<div class="card-sizes" role="group" aria-label="Quick add a size"><span class="card-sizes-label" aria-hidden="true">Add</span>${(p.sizes || []).map(sz =>
-      `<button type="button" data-add="${id}" data-size="${esc(sz)}" aria-label="Add ${esc(titleOf(p))}, size ${esc(sz)}, to bag">${esc(sz)}</button>`).join("")}</div>`
-    : `<div class="card-sizes card-sizes-out">${s.soldOut ? "<span>Sold out</span>" : `<span>Drops in</span><span data-countdown data-countdown-format="short"></span>`}</div>`;
-  return `<article class="card${s.soldOut ? " is-soldout" : ""}${s.low ? " is-low" : ""}" data-id="${id}">
+  const bar = buy
+    ? `<div class="card-bar"><div class="card-bar-inner">
+        <button type="button" class="card-quick" data-quick="${id}" aria-label="Quick add ${esc(name)}"><span class="card-quick-label">Quick add</span><i class="card-quick-plus" aria-hidden="true">${ICON.plus}</i></button>
+        <div class="card-sizes" role="group" aria-label="Add ${esc(name)} to cart — choose size">${(p.sizes || []).map(sz =>
+          `<button type="button" data-add="${id}" data-size="${esc(sz)}" aria-label="Add ${esc(name)}, size ${esc(sz)}, to cart">${esc(sz)}</button>`).join("")}</div>
+      </div></div>`
+    : (!d.live && !s.soldOut
+      ? `<div class="card-bar is-locked"><div class="card-bar-inner"><p class="card-bar-note">Opens in <span data-countdown data-countdown-format="short"></span></p></div></div>`
+      : "");
+  return `<article class="card${s.soldOut ? " is-soldout" : ""}${s.low ? " is-low" : ""}${back ? " has-back" : ""}" data-id="${id}">
     <a class="card-media" href="${url}" tabindex="-1" aria-hidden="true">
-      <span class="card-top">${n > -1 ? `<span class="card-index">[${pad2(n + 1)}]</span>` : ""}${badge}</span>
       <span class="card-img">${cardArt(p, "front")}</span>
       ${back ? `<span class="card-img-alt">${back}</span>` : ""}
+      ${badge}
     </a>
     <button type="button" class="card-wish" data-wish="${id}" aria-pressed="${wished}" aria-label="${wished ? "Remove from" : "Add to"} wishlist">${ICON.heart}</button>
-    <button type="button" class="card-quick" data-quick="${id}" aria-label="Quick view ${esc(titleOf(p))}">${ICON.eye}<span>Quick view</span><i class="card-quick-plus" aria-hidden="true">${ICON.plus}</i></button>
-    ${sizes}
+    ${bar}
     <div class="card-body">
-      <div class="card-row"><a class="card-title" href="${url}">${esc(titleOf(p))}</a>
-        <span class="price"><span class="price-now">${rupee(p.price)}</span>${off > 0 ? `<s class="price-mrp">${rupee(p.mrp)}</s><span class="price-off">${off}% off</span>` : ""}</span></div>
-      <p class="card-meta">${esc(p.colorName || catName(p.category))}${p.fit ? ` · ${esc(p.fit)}` : ""}</p>
-      ${stockMeter(p)}
+      <a class="card-name card-title" href="${url}">${esc(name)}</a>
+      ${tech ? `<p class="card-tech">${esc(tech)}</p>` : ""}
+      ${priceHTML(p)}
+      ${s.low ? `<p class="card-stock">Only ${s.left} left</p>` : ""}
       ${swatches}
     </div>
   </article>`;
@@ -286,9 +344,17 @@ function productCard(p) {
 function miniCard(p, extra = "") {
   return `<div class="mini-card"><a class="mini-thumb" href="${productUrl(p)}" tabindex="-1" aria-hidden="true">${productImage(p)}</a>
     <div class="mini-info"><a class="mini-name" href="${productUrl(p)}">${esc(titleOf(p))}</a>
-    <span class="mini-meta">${esc(p.colorName || "")} · ${rupee(p.price)}</span>${extra}</div></div>`;
+    <span class="mini-meta">${esc(techLabel(p) || p.colorName || "")}</span><span class="mini-price">${rupee(p.price)}</span>${extra}</div></div>`;
 }
 const miniSizes = p => `<div class="mini-sizes" role="group" aria-label="Quick add ${esc(titleOf(p))}">${(p.sizes || []).map(s => `<button type="button" data-add="${esc(p.id)}" data-size="${esc(s)}" aria-label="Add ${esc(titleOf(p))} size ${esc(s)}">${esc(s)}</button>`).join("")}</div>`;
+
+/* Centred row of small category links (+ "All"). Pages may drop it anywhere. */
+function categoryLinksRow(opts = {}) {
+  const params = new URLSearchParams(location.search), page = (document.body && document.body.dataset.page) || "";
+  const active = opts.active !== undefined ? opts.active : (page === "shop" && !params.get("tag") && !params.get("q") ? (params.get("cat") || "") : null);
+  const link = (href, label, on) => `<a class="cat-link${on ? " is-active" : ""}" href="${href}"${on ? ' aria-current="page"' : ""}>${esc(label)}</a>`;
+  return `<nav class="cat-links${opts.className ? " " + esc(opts.className) : ""}" aria-label="${esc(opts.label || "Shop by category")}">${link("shop.html", opts.allLabel || "All", active === "")}${liveCategories().map(c => link(`shop.html?cat=${encodeURIComponent(c.id)}`, c.name, active === c.id)).join("")}</nav>`;
+}
 
 /* ---------- Scroll lock & layer stack (drawers, search, modal) ---------- */
 let _lockCount = 0;
@@ -301,7 +367,7 @@ function lockScroll(on) {
   } else if (!_lockCount) { de.classList.remove("is-locked"); de.style.removeProperty("--sbw"); }
 }
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-const focusables = el => $$(FOCUSABLE, el).filter(n => n.offsetParent !== null || n === document.activeElement);
+const focusables = el => $$(FOCUSABLE, el).filter(n => (n.offsetParent !== null || n === document.activeElement) && !n.closest("[inert]"));
 const Layers = {
   stack: [],
   open(el, close, focusEl) {
@@ -336,25 +402,39 @@ function navGroups() {
   return out;
 }
 const countIn = fn => PRODUCTS.filter(fn).length;
-function megaHTML(groupName) {
-  const g = navGroups().find(x => x.name === groupName); if (!g) return "";
-  const tiles = uniqueFamilies(PRODUCTS.filter(p => groupOf(p) === g.name).sort((a, b) => rankProduct(b) - rankProduct(a)), 3);
+const hasTag = t => PRODUCTS.some(p => (p.tags || []).includes(t));
+function shopLinks() {
+  const out = [["shop.html", "All products"]];
+  if (hasTag("new")) out.push(["shop.html?tag=new", "New in"]);
+  if (hasTag("bestseller")) out.push(["shop.html?tag=bestseller", "Bestsellers"]);
+  if (PRODUCTS.some(p => discount(p) > 0)) out.push(["shop.html?tag=sale", "Sale"]);
+  return out;
+}
+function megaHTML() {
+  const groups = navGroups();
+  const best = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 1)[0];
   return `<div class="mega-inner container">
-    <div class="mega-links"><p class="eyebrow">${esc(g.name)}</p>
-      <ul>${g.cats.map(c => `<li><a href="shop.html?cat=${encodeURIComponent(c.id)}">${esc(c.name)}<sup>(${pad2(countIn(p => p.category === c.id))})</sup></a></li>`).join("")}</ul>
-      <a class="link-arrow" href="shop.html?group=${encodeURIComponent(g.name)}">Shop all ${esc(g.name)}</a></div>
-    ${tiles.map(p => `<a class="mega-tile" href="${productUrl(p)}"><span class="mega-tile-media">${productImage(p)}</span>
-      <span class="mega-tile-name">${esc(titleOf(p))}</span><span class="mega-tile-price">${rupee(p.price)}</span></a>`).join("")}
+    <div class="mega-cols">
+      <div class="mega-col"><p class="mega-head">Shop</p><ul>${shopLinks().map(([h, l]) => `<li><a href="${h}">${esc(l)}</a></li>`).join("")}</ul></div>
+      ${groups.map(g => `<div class="mega-col"><p class="mega-head">${esc(g.name)}</p><ul>${g.cats.map(c => `<li><a href="shop.html?cat=${encodeURIComponent(c.id)}">${esc(c.name)}<span class="mega-count">${countIn(p => p.category === c.id)}</span></a></li>`).join("")}</ul></div>`).join("")}
+      <div class="mega-col"><p class="mega-head">Help</p><ul><li><button type="button" data-fitfinder>Size guide</button></li><li><a href="policies.html#shipping">Shipping</a></li><li><a href="policies.html#exchange">Exchange &amp; returns</a></li></ul></div>
+    </div>
+    <div class="mega-tiles">
+      <a class="mega-tile" href="shop.html"><span class="mega-tile-media is-wide">${campaignImage("banner", { scene: "rail", ratio: "4:5", alt: `${dropLabel()}${DROP.name ? " — " + DROP.name : ""}` })}</span>
+        <span class="mega-tile-name">${esc(dropLabel())}${DROP.name ? " — " + esc(DROP.name) : ""}</span><span class="mega-tile-sub">Shop the drop</span></a>
+      ${best ? `<a class="mega-tile" href="${productUrl(best)}"><span class="mega-tile-media">${productImage(best)}</span>
+        <span class="mega-tile-name">${esc(titleOf(best))}</span><span class="mega-tile-sub">${rupee(best.price)}</span></a>` : ""}
+    </div>
   </div>`;
 }
 function dropStatusHTML() {
   const d = dropState();
-  return d.live
-    ? `<a class="drop-status" href="shop.html" aria-label="${esc(dropLabel())} is live now"><span class="live-dot" aria-hidden="true"></span><span>Live now</span></a>`
-    : `<span class="drop-status is-soon" role="timer"><span class="live-dot is-hot" aria-hidden="true"></span><span>Drops in</span><span data-countdown></span></span>`;
+  return d.live ? `<a class="drop-status" href="shop.html">${esc(dropLabel())} — available now</a>`
+    : `<span class="drop-status is-soon" role="timer">${esc(dropLabel())} opens in <span data-countdown data-countdown-format="short"></span></span>`;
 }
 const codOn = () => STORE.codFee !== -1;
 const allHeavy = () => PRODUCTS.length && PRODUCTS.every(p => /240\s*gsm/i.test(p.fabric || ""));
+const STAMP = `<img class="brand-stamp" src="images/stamp.svg" alt="" width="28" height="28" decoding="async" onerror="this.remove()">`;
 
 /* ---------- Layout: announcement, header, menus, search, drawer, footer ---------- */
 function renderLayout() {
@@ -362,137 +442,138 @@ function renderLayout() {
   const page = body.dataset.page || "";
   const params = new URLSearchParams(location.search);
   let annClosed = false; try { annClosed = sessionStorage.getItem("bhakshi_announce_closed") === "1"; } catch (e) {}
-  const ann = (STORE.announcement || []).filter(Boolean);
-  const groups = navGroups();
-  const cur = (cond) => cond ? ' aria-current="page"' : "";
-  const navLinks = [
-    `<li><a class="nav-drop" href="shop.html"${cur(page === "shop" && !location.search)} data-scramble>${esc(dropLabel())}<sup>(${pad2(PRODUCTS.length)})</sup></a></li>`,
-    ...groups.map(g => g.cats.length >= 2
-      ? `<li class="has-mega" data-group="${esc(g.name)}"><a href="shop.html?group=${encodeURIComponent(g.name)}" aria-expanded="false" aria-haspopup="true"${cur(page === "shop" && params.get("group") === g.name)} data-scramble>${esc(g.name)}</a><div class="mega" role="region" aria-label="${esc(g.name)}"></div></li>`
-      : `<li><a href="shop.html?cat=${encodeURIComponent(g.cats[0].id)}"${cur(page === "shop" && params.get("cat") === g.cats[0].id)} data-scramble>${esc(g.cats[0].name)}</a></li>`),
-    `<li><button type="button" data-fitfinder data-scramble>Size Guide</button></li>`,
-    `<li><a href="about.html"${cur(page === "about")} data-scramble>About</a></li>`
-  ].join("");
-
-  let idx = 0;
-  const mmLink = (href, label, extra = "") => `<a class="mm-link mm-item" href="${href}"${extra}><span class="mm-idx" aria-hidden="true">${pad2(++idx)}</span><span class="mm-text">${esc(label)}</span></a>`;
-  const mmNav = [
-    mmLink("shop.html", dropLabel()),
-    ...groups.map(g => g.cats.length >= 2
-      ? mmLink(`shop.html?group=${encodeURIComponent(g.name)}`, g.name) + `<div class="mm-group-cats mm-item">${g.cats.map(c => `<a class="chip" href="shop.html?cat=${encodeURIComponent(c.id)}">${esc(c.name)}</a>`).join("")}</div>`
-      : mmLink(`shop.html?cat=${encodeURIComponent(g.cats[0].id)}`, g.cats[0].name)),
-    `<button type="button" class="mm-link mm-item" data-fitfinder><span class="mm-idx" aria-hidden="true">${pad2(++idx)}</span><span class="mm-text">Size Guide</span></button>`,
-    mmLink("about.html", "About")
-  ].join("");
+  const ann = (STORE.announcement || []).filter(Boolean).map(a => esc(a));
+  if (!dropState().live) ann.unshift(`${esc(dropLabel())} opens in <span data-countdown data-countdown-format="short"></span>`);
+  const cur = cond => cond ? ' aria-current="page"' : "";
+  const shopCur = page === "shop" && !location.search;
 
   const header = `
   <a class="skip-link" href="#main">Skip to content</a>
   ${ann.length && !annClosed ? `<div class="announce" role="region" aria-label="Announcements">
-    <div class="ticker announce-ticker" data-speed="46">${ann.map(a => `<span class="ticker-item">${esc(a)}<span class="ticker-sep" aria-hidden="true">✦</span></span>`).join("")}</div>
-    <button type="button" class="announce-close" aria-label="Dismiss announcements">${ICON.close}</button></div>` : ""}
+    <div class="announce-track">${ann.map((a, i) => `<p class="announce-item${i ? "" : " is-active"}"${i ? ' aria-hidden="true"' : ""}>${a}</p>`).join("")}</div>
+    <button type="button" class="announce-close" aria-label="Dismiss announcement">${ICON.close}</button></div>` : ""}
   <header class="site-header" id="site-header">
     <div class="header-inner">
       <div class="header-left">
         <button type="button" class="icon-btn menu-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">${ICON.menu}</button>
-        <a class="wordmark" href="index.html" aria-label="${esc(STORE.name)} home">${esc(STORE.name)}</a>
-        <nav class="nav-main" aria-label="Main"><ul>${navLinks}</ul></nav>
+        <nav class="nav-main" aria-label="Main"><ul>
+          <li class="has-mega"><a class="nav-link" href="shop.html" aria-haspopup="true" aria-expanded="false" aria-controls="mega-shop"${cur(page === "shop" && params.has("cat"))}>Shop</a></li>
+          <li><a class="nav-link" href="shop.html"${cur(shopCur)}>${esc(dropLabel())}</a></li>
+          <li><a class="nav-link" href="about.html"${cur(page === "about")}>About</a></li>
+        </ul></nav>
       </div>
+      <a class="brand" href="index.html" aria-label="${esc(STORE.name)} — home">${STAMP}<span class="wordmark">${esc(STORE.name)}</span></a>
       <div class="header-right">
-        ${dropStatusHTML()}
-        <button type="button" class="header-search search-toggle hide-mobile" aria-label="Search (press /)">${ICON.search}<span>Search</span><kbd aria-hidden="true">/</kbd></button>
-        <button type="button" class="icon-btn search-toggle hide-desktop" aria-label="Search">${ICON.search}</button>
-        <a class="icon-btn wish-link" href="wishlist.html" aria-label="Wishlist">${ICON.heart}<span class="count wish-count" data-count="0">0</span></a>
-        <button type="button" class="icon-btn cart-toggle" aria-label="Open bag" aria-controls="cart-drawer">${ICON.bag}<span class="count cart-count" data-count="0">0</span></button>
+        <button type="button" class="icon-btn search-toggle" aria-label="Search" aria-controls="search-overlay">${ICON.search}</button>
+        <a class="icon-btn wish-link" href="wishlist.html" aria-label="Wishlist"${cur(page === "wishlist")}>${ICON.heart}<span class="count wish-count" data-count="0">0</span></a>
+        <button type="button" class="icon-btn cart-toggle" aria-label="Open cart" aria-controls="cart-drawer">${ICON.bag}<span class="count cart-count" data-count="0">0</span></button>
       </div>
     </div>
-    <div class="scroll-progress" aria-hidden="true"><span></span></div>
+    <div class="mega" id="mega-shop" role="region" aria-label="Shop menu"></div>
   </header>
   <div class="mega-scrim" aria-hidden="true"></div>
   <div class="scrim" aria-hidden="true"></div>
   <aside class="mobile-menu" id="mobile-menu" role="dialog" aria-modal="true" aria-label="Menu" tabindex="-1" inert>
-    <div class="mm-head"><a class="wordmark" href="index.html">${esc(STORE.name)}</a>${dropStatusHTML()}<button type="button" class="icon-btn mm-close" aria-label="Close menu">${ICON.close}</button></div>
-    <nav class="mm-nav" aria-label="Mobile">${mmNav}</nav>
-    <div class="mm-drop mm-item"><div class="mm-drop-head"><span class="eyebrow">${esc(dropLabel())}${DROP.name ? " — " + esc(DROP.name) : ""}</span><span class="mono">(${pad2(PRODUCTS.length)})</span></div><div class="mm-drop-row"></div></div>
-    <div class="mm-quick mm-item">
-      <a href="wishlist.html">${ICON.heart}<span>Wishlist <span class="wish-count-text">(0)</span></span></a>
-      <button type="button" data-open-search>${ICON.search}<span>Search</span></button>
-      <a href="contact.html#track">${ICON.truckSm}<span>Track order</span></a>
-      <a class="is-wa" href="${waLink("Hi BHAKSHI, I need some help.")}" target="_blank" rel="noopener">${ICON.wa}<span>WhatsApp</span></a>
+    <div class="mm-head"><a class="brand" href="index.html" aria-label="${esc(STORE.name)} — home"><span class="wordmark">${esc(STORE.name)}</span></a>
+      <button type="button" class="icon-btn mm-close" aria-label="Close menu">${ICON.close}</button></div>
+    <nav class="mm-nav" aria-label="Mobile">
+      <button type="button" class="mm-link mm-acc" aria-expanded="false" aria-controls="mm-shop"><span>Shop</span><i class="mm-acc-icon" aria-hidden="true"></i></button>
+      <div class="mm-panel" id="mm-shop" inert><div class="mm-panel-inner">
+        ${shopLinks().map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join("")}
+        ${liveCategories().map(c => `<a href="shop.html?cat=${encodeURIComponent(c.id)}">${esc(c.name)}</a>`).join("")}
+      </div></div>
+      <a class="mm-link" href="shop.html">${esc(dropLabel())}${DROP.name ? `<span class="mm-sub">${esc(DROP.name)}</span>` : ""}</a>
+      <a class="mm-link" href="about.html">About</a>
+      <a class="mm-link" href="contact.html">Contact</a>
+      <a class="mm-link" href="wishlist.html">Wishlist <span class="mm-sub wish-count-text">(0)</span></a>
+    </nav>
+    <div class="mm-foot">
+      <button type="button" data-fitfinder>Size guide</button>
+      <a href="policies.html#shipping">Shipping</a>
+      <a href="policies.html#exchange">Exchange &amp; returns</a>
+      ${STORE.instagram ? `<a href="${esc(STORE.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ""}
+      <a href="${waLink("Hi BHAKSHI, I need some help.")}" target="_blank" rel="noopener">WhatsApp</a>
+      <p class="mm-note">UPI${codOn() ? " · Cash on Delivery" : ""} · Free shipping above ${esc(rupee(STORE.freeShippingAbove).replace(/\.00$/, ""))}</p>
     </div>
-    <p class="mm-note mm-item">${esc(dropLabel())}${DROP.name ? " — " + esc(DROP.name) : ""} · Free shipping above ${rupee(STORE.freeShippingAbove)}${codOn() ? " · Cash on Delivery" : ""} · 7-day size exchange</p>
   </aside>
   <div class="search-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-label="Search products" inert>
-    <div class="search-top container"><p class="eyebrow">Search ${esc(dropLabel())}</p>
-      <button type="button" class="search-close" aria-label="Close search"><span>Close</span><kbd aria-hidden="true">Esc</kbd></button></div>
-    <form class="search-form container" action="shop.html" role="search">
-      ${ICON.search}
-      <input type="search" name="q" placeholder="Search" autocomplete="off" spellcheck="false" aria-label="Search products" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list">
-      <button type="button" class="search-clear" hidden>Clear</button>
-    </form>
-    <div class="search-body container">
-      <div class="search-empty">
-        <div><p class="eyebrow">Try</p><div class="search-chips"></div></div>
-        <div><p class="eyebrow">${esc(dropLabel())} — every piece</p><div class="search-trending"></div></div>
+    <div class="search-panel">
+      <div class="container search-head">
+        <form class="search-form" action="shop.html" role="search">
+          ${ICON.search}
+          <label class="sr-only" for="search-input">Search products</label>
+          <input id="search-input" type="search" name="q" placeholder="Search for products" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list">
+          <button type="button" class="search-clear" hidden>Clear</button>
+        </form>
+        <button type="button" class="icon-btn search-close" aria-label="Close search">${ICON.close}</button>
       </div>
-      <div class="search-results-wrap" hidden>
-        <div class="search-results-head"><p class="eyebrow search-count" aria-live="polite"></p><a class="link-arrow search-all" href="shop.html">View all</a></div>
-        <div class="search-results" id="search-results" role="listbox" aria-label="Results"></div>
-        <div class="search-more"></div>
+      <div class="container search-body">
+        <div class="search-empty">
+          <div class="search-chips" aria-label="Suggestions"></div>
+          <p class="search-label">Popular products</p>
+          <div class="search-grid search-trending"></div>
+        </div>
+        <div class="search-results-wrap" hidden>
+          <div class="search-results-head"><p class="search-label search-count" aria-live="polite"></p><a class="link-underline search-all" href="shop.html">View all results</a></div>
+          <div class="search-grid search-results" id="search-results" role="listbox" aria-label="Results"></div>
+        </div>
+        <div class="search-none" hidden></div>
       </div>
-      <div class="search-none" hidden></div>
     </div>
   </div>
   <aside class="drawer cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" tabindex="-1" inert>
-    <div class="drawer-head"><h2 class="drawer-title" id="cart-title">Bag <span class="drawer-count"></span></h2>
-      <button type="button" class="icon-btn drawer-close" aria-label="Close bag">${ICON.close}</button></div>
+    <div class="drawer-head"><h2 class="drawer-title" id="cart-title">Your cart <span class="drawer-count"></span></h2>
+      <button type="button" class="icon-btn drawer-close" aria-label="Close cart">${ICON.close}</button></div>
     <div class="cart-ship"></div>
-    <div class="drawer-body"><div class="cart-lines"></div><div class="cart-upsell"></div></div>
+    <div class="drawer-body">
+      <div class="cart-lines"></div>
+      <div class="cart-extras" hidden>
+        <label class="cart-gift"><input type="checkbox" class="cart-gift-input"><span class="cart-gift-box" aria-hidden="true">${ICON.check}</span><span>This is a gift — add a note</span></label>
+        <button type="button" class="cart-note-toggle" aria-expanded="false" aria-controls="cart-note-wrap">Add order note</button>
+        <div class="cart-note-wrap" id="cart-note-wrap" hidden>
+          <label class="cart-note-label" for="cart-note-input">Order note</label>
+          <textarea id="cart-note-input" class="cart-note-input" rows="3" maxlength="500" placeholder="Special instructions, delivery notes…"></textarea>
+          <span class="cart-note-hint">Saved automatically and sent with your order.</span>
+        </div>
+      </div>
+      <div class="cart-upsell"></div>
+    </div>
     <div class="drawer-foot cart-foot"></div>
   </aside>`;
   if (main) main.insertAdjacentHTML("beforebegin", header); else body.insertAdjacentHTML("afterbegin", header);
 
-  const trust = [
-    [ICON.truck, "Free shipping", `Above ${rupee(STORE.freeShippingAbove)}`],
-    codOn() ? [ICON.cash, "Cash on Delivery", "Pay when it lands"] : [ICON.cash, "UPI payments", "Fast & secure"],
-    [ICON.swap, "7-day size exchange", "Wrong fit? Swap it"],
-    allHeavy() ? [ICON.fabric, "240 GSM cotton", "Heavyweight, bio-washed"] : [ICON.india, "Made in India", "Cut & printed here"]
-  ];
-  const helpLinks = `<a href="contact.html#track">Track order</a><a href="policies.html#exchange">Exchange</a><a href="policies.html#shipping">Shipping</a><a href="contact.html">Contact</a>`;
+  const year = new Date().getFullYear();
   const footer = `
-  <section class="trust-strip" aria-label="Why shop with us"><div class="container trust-grid">
-    ${trust.map(t => `<div class="trust-item">${t[0]}<div><b>${esc(t[1])}</b><span>${esc(t[2])}</span></div></div>`).join("")}
-  </div></section>
   <footer class="site-footer">
     <div class="container footer-top">
+      <div class="footer-brand">
+        <a class="brand" href="index.html" aria-label="${esc(STORE.name)} — home">${STAMP}<span class="wordmark">${esc(STORE.name)}</span></a>
+        <p>${esc(STORE.tagline || "Printed by hand. Made in India.")} Heavyweight tees made in small runs — when a drop sells out, it's gone.</p>
+      </div>
+      <nav class="footer-col" aria-label="Resources"><h3>Resources</h3>
+        <a href="about.html">About</a><a href="contact.html">Contact</a><button type="button" data-fitfinder>Size guide</button><a href="contact.html#track">Track order</a></nav>
+      <nav class="footer-col" aria-label="Quick links"><h3>Quick links</h3>
+        <a href="policies.html#shipping">Shipping</a><a href="policies.html#exchange">Exchange &amp; returns</a><a href="policies.html#privacy">Privacy</a><a href="policies.html#terms">Terms</a></nav>
+      <div class="footer-col"><h3>Social</h3>
+        ${STORE.instagram ? `<a href="${esc(STORE.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ""}
+        <a href="${waLink("Hi BHAKSHI!")}" target="_blank" rel="noopener">WhatsApp</a>
+        ${STORE.email ? `<a href="mailto:${esc(STORE.email)}">${esc(STORE.email)}</a>` : ""}</div>
       <form class="wa-join footer-join" novalidate>
-        <p class="eyebrow">Drop alerts</p>
-        <h2 class="footer-join-title">Get drop alerts on <em>WhatsApp</em></h2>
-        <p class="footer-join-text">First word when the next drop lands. One message per drop, nothing else.</p>
-        <label class="sr-only" for="wa-join-name">Your first name</label>
-        <div class="wa-join-row"><input id="wa-join-name" name="name" type="text" placeholder="Your first name" autocomplete="given-name" maxlength="40">
-          <button type="submit" class="btn btn-wa">${ICON.wa}<span>Join</span></button></div>
+        <h3>Get first access</h3>
+        <p>New drops reach WhatsApp first. One message per drop, nothing else.</p>
+        <div class="wa-join-row"><label class="sr-only" for="wa-join-name">Your first name</label>
+          <input id="wa-join-name" name="name" type="text" placeholder="Your first name" autocomplete="given-name" maxlength="40">
+          <button type="submit" class="wa-join-btn" aria-label="Join on WhatsApp">${ICON.arrow}</button></div>
         <small>Opens WhatsApp with a message ready to send.</small>
       </form>
-      <div class="footer-cols">
-        <div class="footer-col"><h3>Shop</h3><a href="shop.html">${esc(dropLabel())} — All</a>${liveCategories().map(c => `<a href="shop.html?cat=${encodeURIComponent(c.id)}">${esc(c.name)}</a>`).join("")}<a href="wishlist.html">Wishlist</a></div>
-        <div class="footer-col"><h3>Help</h3>${helpLinks}<button type="button" data-fitfinder>Size guide</button></div>
-        <div class="footer-col"><h3>Company</h3><a href="about.html">About</a><a href="policies.html">Policies</a><a href="policies.html#privacy">Privacy</a></div>
-        <div class="footer-col footer-contact"><h3>Contact</h3>
-          <a class="is-wa" href="${waLink("Hi BHAKSHI!")}" target="_blank" rel="noopener">${ICON.wa}<span>WhatsApp us</span></a>
-          ${STORE.email ? `<a href="mailto:${esc(STORE.email)}">${ICON.mail}<span>${esc(STORE.email)}</span></a>` : ""}
-          ${STORE.instagram ? `<a href="${esc(STORE.instagram)}" target="_blank" rel="noopener">${ICON.insta}<span>Instagram</span></a>` : ""}
-          <p class="footer-hours">Mon–Sat · 10am–7pm IST</p></div>
-      </div>
     </div>
-    <div class="footer-mark" aria-hidden="true"><span>${esc(STORE.name)}</span></div>
     <div class="container footer-bottom">
-      <span>© ${new Date().getFullYear()} ${esc(STORE.name)}</span>
-      <span><b>UPI${codOn() ? " · Cash on Delivery" : ""}</b></span>
-      <span class="footer-drop"><span class="live-dot" aria-hidden="true"></span>${esc(dropLabel())}${DROP.name ? " — " + esc(DROP.name) : ""} — Made in India</span>
+      <span>© ${year} ${esc(STORE.name)}</span>
+      <span>UPI${codOn() ? " · Cash on Delivery" : ""}</span>
+      <span>Made in India</span>
     </div>
   </footer>
-  <button type="button" class="to-top" aria-label="Back to top">${ICON.up}</button>
-  <a class="wa-float" href="${waLink("Hi BHAKSHI! I have a question.")}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">${ICON.wa}<span class="wa-tip">Chat on WhatsApp</span></a>
+  <a class="wa-float" href="${waLink("Hi BHAKSHI! I have a question.")}" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">${ICON.wa}</a>
   <div class="toast-stack" aria-live="polite"></div>
   <div class="modal" hidden><div class="modal-overlay"></div>
     <div class="modal-panel" role="dialog" aria-modal="true" tabindex="-1">
@@ -502,128 +583,99 @@ function renderLayout() {
   if (main) main.insertAdjacentHTML("afterend", footer); else body.insertAdjacentHTML("beforeend", footer);
 }
 
-/* ---------- Tickers (marquee): any .ticker; content is auto-duplicated for a seamless loop ---------- */
-function initTickers(root = document) {
-  const list = $$(".ticker", root.querySelectorAll ? root : document);
-  if (root.classList && root.classList.contains("ticker")) list.push(root);
-  list.forEach(t => {
-    if (t.dataset.tickerReady || t.offsetParent === null && getComputedStyle(t).position !== "fixed") return;
-    let track = t.querySelector(":scope > .ticker-track");
-    if (!track) { track = document.createElement("div"); track.className = "ticker-track"; while (t.firstChild) track.appendChild(t.firstChild); t.appendChild(track); }
-    if ([...track.childNodes].some(n => n.nodeType === 3 && n.nodeValue.trim())) {
-      const item = document.createElement("span"); item.className = "ticker-item";
-      while (track.firstChild) item.appendChild(track.firstChild); track.appendChild(item);
-    }
-    const originals = [...track.children]; if (!originals.length) return;
-    t.dataset.tickerReady = "1";
-    const clone = n => { const c = n.cloneNode(true); c.setAttribute("aria-hidden", "true"); $$("a,button,input", c).forEach(x => x.tabIndex = -1); return c; };
-    const need = Math.max(t.clientWidth, 1280) * 1.05; let guard = 0;
-    while (track.offsetWidth < need && guard++ < 24) originals.forEach(n => track.appendChild(clone(n)));
-    [...track.children].forEach(n => track.appendChild(clone(n)));
-    const speed = +t.dataset.speed || 60;
-    t.style.setProperty("--ticker-dur", Math.max(8, track.offsetWidth / 2 / speed).toFixed(1) + "s");
-  });
-}
+/* ---------- v2 effects kept as harmless no-ops (old markup can't break) ---------- */
+function initTickers() {}
+function scramble() {}
+function initScramble() {}
+function initMagnetic() {}
+function initCursor() {}
+function fitFooterMark() {}
 
-/* ---------- Text scramble (data-scramble) ---------- */
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+/<>";
-function scramble(el, dur = 520) {
-  if (!el || el._scr || reducedMotion()) return;
-  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  const nodes = []; while (walker.nextNode()) if (walker.currentNode.nodeValue.trim()) nodes.push(walker.currentNode);
-  if (!nodes.length) return;
-  const orig = nodes.map(n => n.nodeValue);
-  const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
-  const prev = { width: el.style.width, display: el.style.display, overflow: el.style.overflow, whiteSpace: el.style.whiteSpace };
-  if (cs.display === "inline") el.style.display = "inline-block";
-  el.style.width = r.width + "px"; el.style.overflow = "hidden"; el.style.whiteSpace = "nowrap";
-  const total = orig.join("").length, t0 = performance.now();
-  el._scr = true;
-  const frame = now => {
-    const p = Math.min(1, (now - t0) / dur); let k = 0;
-    nodes.forEach((n, ni) => {
-      n.nodeValue = [...orig[ni]].map(ch => {
-        const pos = k++ / Math.max(1, total);
-        if (ch === " " || p >= 1 || p > pos * .7 + .3) return ch;
-        return SCRAMBLE_CHARS[(Math.random() * SCRAMBLE_CHARS.length) | 0];
-      }).join("");
-    });
-    if (p < 1) requestAnimationFrame(frame);
-    else { nodes.forEach((n, i) => n.nodeValue = orig[i]); Object.assign(el.style, prev); el._scr = false; }
-  };
-  requestAnimationFrame(frame);
-}
-function initScramble() {
-  const handler = e => {
-    const el = e.target.closest && e.target.closest("[data-scramble]"); if (!el || el.dataset.scramble === "in") return;
-    if (e.type === "mouseover" && e.relatedTarget && el.contains(e.relatedTarget)) return;
-    scramble(el);
-  };
-  document.addEventListener("mouseover", handler, { passive: true });
-  document.addEventListener("focusin", handler);
-}
-
-/* ---------- Announcement ---------- */
+/* ---------- Announcement: fades between items, dismissible ---------- */
 function initAnnouncement() {
   const bar = $(".announce"); if (!bar) return;
+  const items = $$(".announce-item", bar);
+  let i = 0, timer = 0, paused = false;
+  const show = n => {
+    items[i].classList.remove("is-active"); items[i].setAttribute("aria-hidden", "true");
+    i = (n + items.length) % items.length;
+    items[i].classList.add("is-active"); items[i].removeAttribute("aria-hidden");
+  };
+  const start = () => { clearInterval(timer); if (items.length > 1) timer = setInterval(() => { if (!paused && !document.hidden) show(i + 1); }, 4800); };
+  bar.addEventListener("mouseenter", () => paused = true);
+  bar.addEventListener("mouseleave", () => paused = false);
+  bar.addEventListener("focusin", () => paused = true);
+  bar.addEventListener("focusout", () => paused = false);
+  start();
   $(".announce-close", bar).addEventListener("click", () => {
+    clearInterval(timer);
     try { sessionStorage.setItem("bhakshi_announce_closed", "1"); } catch (e) {}
     bar.style.height = bar.offsetHeight + "px"; void bar.offsetHeight; bar.classList.add("is-closing"); bar.style.height = "0px";
-    setTimeout(() => bar.remove(), 420);
+    setTimeout(() => { bar.remove(); updateFloatOffset(); }, reducedMotion() ? 0 : 360);
   });
 }
 
-/* ---------- Header: scroll states, mega menu, floating offsets ---------- */
+/* ---------- Header: scroll line, Shop mega panel, floating offsets ---------- */
 let header;
 function initHeader() {
   header = $("#site-header");
-  const bar = $(".scroll-progress span"), toTop = $(".to-top");
-  let lastY = scrollY, ticking = false;
+  let ticking = false;
   const update = () => {
-    const y = scrollY, dy = y - lastY;
-    header.classList.toggle("is-scrolled", y > 8);
-    const frozen = Layers.stack.length || header.classList.contains("mega-open") || (header.contains(document.activeElement) && document.activeElement !== document.body);
-    if (!frozen) {
-      if (y > 320 && dy > 6) header.classList.add("is-hidden");
-      else if (dy < -6 || y < 140) header.classList.remove("is-hidden");
-    }
-    const max = document.documentElement.scrollHeight - innerHeight;
-    if (bar) bar.style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
+    const y = scrollY;
+    header.classList.toggle("is-scrolled", y > 4);
     document.body.classList.toggle("show-top", y > innerHeight * 1.2);
-    document.body.classList.toggle("header-hidden", header.classList.contains("is-hidden"));
     updateFloatOffset();
-    lastY = y; ticking = false;
+    ticking = false;
   };
   addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
   addEventListener("resize", update, { passive: true });
   update();
   setInterval(() => { if (!document.hidden) updateFloatOffset(); }, 800);
   const foot = $(".site-footer");
-  if (foot && "IntersectionObserver" in window) new IntersectionObserver(([en]) => document.body.classList.toggle("footer-in", en.isIntersecting), { rootMargin: "0px 0px -35% 0px" }).observe(foot);
-  header.addEventListener("focusin", () => header.classList.remove("is-hidden"));
-  toTop.addEventListener("click", () => scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" }));
+  if (foot && "IntersectionObserver" in window) new IntersectionObserver(([en]) => document.body.classList.toggle("footer-in", en.isIntersecting), { rootMargin: "0px 0px -30% 0px" }).observe(foot);
 
-  // Mega menu with hover intent (only rendered when a group has 2+ live categories)
-  const closeMega = li => {
-    li.classList.remove("is-open"); $("a", li).setAttribute("aria-expanded", "false");
-    if (!$(".has-mega.is-open")) { header.classList.remove("mega-open"); document.body.classList.remove("mega-open"); }
-  };
-  const openMega = li => {
-    $$(".has-mega.is-open").forEach(o => o !== li && closeMega(o));
-    const panel = $(".mega", li);
-    if (!panel.dataset.ready) { panel.innerHTML = megaHTML(li.dataset.group); panel.dataset.ready = "1"; }
-    li.classList.add("is-open"); $("a", li).setAttribute("aria-expanded", "true");
-    header.classList.add("mega-open"); document.body.classList.add("mega-open");
-  };
-  $$(".has-mega").forEach(li => {
+  // Shop mega panel (hover intent, focus, click/tap, Esc)
+  const li = $(".has-mega", header), trigger = li && $("a", li), panel = $("#mega-shop");
+  if (li && panel) {
     let t;
-    li.addEventListener("mouseenter", () => { clearTimeout(t); t = setTimeout(() => openMega(li), $(".has-mega.is-open") ? 0 : 110); });
-    li.addEventListener("mouseleave", () => { clearTimeout(t); t = setTimeout(() => closeMega(li), 180); });
-    li.addEventListener("focusin", () => { clearTimeout(t); openMega(li); });
-    li.addEventListener("focusout", e => { if (!li.contains(e.relatedTarget)) closeMega(li); });
-    li.addEventListener("keydown", e => { if (e.key === "Escape" && li.classList.contains("is-open")) { closeMega(li); $("a", li).focus(); } });
-  });
-  $(".mega-scrim").addEventListener("mouseenter", () => $$(".has-mega.is-open").forEach(closeMega));
+    const isOpen = () => header.classList.contains("mega-open");
+    const open = () => {
+      clearTimeout(t);
+      if (!panel.dataset.ready) { panel.innerHTML = megaHTML(); panel.dataset.ready = "1"; }
+      header.classList.add("mega-open"); document.body.classList.add("mega-open"); li.classList.add("is-open");
+      trigger.setAttribute("aria-expanded", "true");
+    };
+    const close = () => {
+      clearTimeout(t);
+      header.classList.remove("mega-open"); document.body.classList.remove("mega-open"); li.classList.remove("is-open");
+      trigger.setAttribute("aria-expanded", "false");
+    };
+    const later = (fn, ms) => { clearTimeout(t); t = setTimeout(fn, ms); };
+    [li, panel].forEach(el => {
+      el.addEventListener("mouseenter", () => later(open, isOpen() ? 0 : 120));
+      el.addEventListener("mouseleave", () => later(close, 200));
+    });
+    trigger.addEventListener("click", e => { if (!finePointer() && !isOpen()) { e.preventDefault(); open(); } });
+    trigger.addEventListener("keydown", e => { if (e.key === "ArrowDown" || ((e.key === " ") && !isOpen())) { e.preventDefault(); open(); setTimeout(() => { const f = focusables(panel)[0]; if (f) f.focus(); }, 30); } });
+    li.addEventListener("focusin", open);
+    // Tab from "Shop" walks into the open panel; Tab past its last link continues along the nav
+    trigger.addEventListener("keydown", e => {
+      if (e.key !== "Tab" || e.shiftKey || !isOpen()) return;
+      const f = focusables(panel); if (f.length) { e.preventDefault(); f[0].focus(); }
+    });
+    panel.addEventListener("keydown", e => {
+      if (e.key !== "Tab") return;
+      const f = focusables(panel); if (!f.length) return;
+      if (!e.shiftKey && document.activeElement === f[f.length - 1]) { const next = li.nextElementSibling && $("a,button", li.nextElementSibling); if (next) { e.preventDefault(); close(); next.focus(); } }
+      else if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); trigger.focus(); }
+    });
+    [li, panel].forEach(el => el.addEventListener("focusout", e => { if (!li.contains(e.relatedTarget) && !panel.contains(e.relatedTarget)) close(); }));
+    header.addEventListener("keydown", e => { if (e.key === "Escape" && isOpen()) { close(); trigger.focus(); } });
+    $(".mega-scrim").addEventListener("mouseenter", close);
+    $(".mega-scrim").addEventListener("click", close);
+    panel.addEventListener("click", e => { if (e.target.closest("a,button")) close(); });
+    addEventListener("resize", () => { if (innerWidth < 1024 && isOpen()) close(); }, { passive: true });
+  }
 
   updateCounts();
   document.addEventListener("cart:change", e => updateCounts(e.detail && e.detail.action === "add"));
@@ -631,7 +683,7 @@ function initHeader() {
 }
 /* Lift floating buttons + toasts above any page-owned fixed bottom bar (e.g. a sticky buy bar).
    Pages can also mark a bar with [data-bottom-bar]. */
-const _ownFloat = ".wa-float, .to-top, .toast-stack, .cursor-dot, .cursor-ring, .drawer, .modal, .mobile-menu, .search-overlay, .scrim, .site-header";
+const _ownFloat = ".wa-float, .to-top, .toast-stack, .drawer, .modal, .mobile-menu, .search-overlay, .scrim, .mega-scrim, .site-header, .fly-ghost";
 let _floatOff = -1;
 function updateFloatOffset() {
   let off = 0;
@@ -649,7 +701,7 @@ function updateFloatOffset() {
     }
   } catch (e) {}
   off = Math.round(off);
-  if (off !== _floatOff) { _floatOff = off; document.documentElement.style.setProperty("--float-offset", off + "px"); }
+  if (off !== _floatOff) { _floatOff = off; document.documentElement.style.setProperty("--float-offset", off + "px"); document.body.classList.toggle("has-bottom-bar", off > 0); }
 }
 let _flying = 0;
 function bump(el) { if (!el) return; el.classList.remove("is-bump"); void el.offsetWidth; el.classList.add("is-bump"); }
@@ -657,22 +709,17 @@ function updateCounts(added) {
   const c = Cart.count(), w = Wishlist.count();
   $$(".cart-count").forEach(el => { el.textContent = c; el.dataset.count = c; });
   $$(".wish-count").forEach(el => { el.textContent = w; el.dataset.count = w; });
-  $$(".wish-count-text").forEach(el => { el.textContent = `(${pad2(w)})`; });
-  const ct = $(".cart-toggle"); if (ct) ct.setAttribute("aria-label", `Open bag, ${c} item${c === 1 ? "" : "s"}`);
+  $$(".wish-count-text").forEach(el => { el.textContent = `(${w})`; });
+  const ct = $(".cart-toggle"); if (ct) ct.setAttribute("aria-label", `Open cart, ${c} item${c === 1 ? "" : "s"}`);
   const wl = $(".wish-link"); if (wl) wl.setAttribute("aria-label", `Wishlist, ${w} item${w === 1 ? "" : "s"}`);
-  if (added && !_flying) { bump($(".cart-toggle")); bump($(".cart-count")); }
+  if (added && !_flying) bump($(".cart-count"));
 }
 function updateCartCount() { updateCounts(); }
 
-/* ---------- Mobile menu ---------- */
+/* ---------- Mobile menu (left drawer) ---------- */
 function openMenu() {
-  const m = $("#mobile-menu"); closeDrawers();
-  const row = $(".mm-drop-row", m);
-  if (row && !row.dataset.ready) {
-    row.dataset.ready = "1";
-    row.innerHTML = PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)).slice(0, 12).map(p => `<a class="mm-drop-tile" href="${productUrl(p)}" aria-label="${esc(titleOf(p))}"><span class="mm-drop-media">${productImage(p)}</span><span class="mm-drop-meta"><span>[${pad2(PRODUCTS.indexOf(p) + 1)}]</span><span>${rupee(p.price)}</span></span></a>`).join("");
-  }
-  $$(".mm-item", m).forEach((el, i) => el.style.setProperty("--i", i));
+  const m = $("#mobile-menu"); if (!m || document.body.classList.contains("menu-open")) return;
+  closeDrawers();
   m.inert = false; document.body.classList.add("menu-open");
   $(".menu-toggle").setAttribute("aria-expanded", "true");
   Layers.open(m, closeMenu, $(".mm-close", m));
@@ -685,6 +732,11 @@ function closeMenu() {
 function initMobileMenu() {
   $(".menu-toggle").addEventListener("click", openMenu);
   $(".mm-close").addEventListener("click", closeMenu);
+  const acc = $(".mm-acc"), panel = $("#mm-shop");
+  if (acc && panel) acc.addEventListener("click", () => {
+    const on = acc.getAttribute("aria-expanded") !== "true";
+    acc.setAttribute("aria-expanded", String(on)); panel.classList.toggle("is-open", on); panel.inert = !on;
+  });
   addEventListener("resize", () => { if (innerWidth >= 1024) closeMenu(); }, { passive: true });
 }
 
@@ -697,8 +749,9 @@ function searchProducts(q) {
   PRODUCTS.forEach(p => {
     const pr = p.print || {};
     const f = {
-      name: _norm(p.name), cat: _norm(catName(p.category) + " " + groupOf(p) + " " + p.shape + " tshirt tee"),
-      color: _norm(p.colorName), fabric: _norm((p.fabric || "") + " " + (p.fit || "") + " " + (pr.front || "") + " " + (pr.back || "")),
+      name: _norm(p.name), cat: _norm(catName(p.category) + " " + groupOf(p) + " " + p.shape + (p.shape === "tee" ? " tshirt tee t shirt" : "")),
+      color: _norm(p.colorName), tech: _norm((p.techniques || []).join(" ")),
+      fabric: _norm((p.fabric || "") + " " + (p.fit || "") + " " + (pr.front || "") + " " + (pr.back || "")),
       tags: _norm((p.tags || []).join(" ")), desc: _norm(p.desc)
     };
     let score = 0;
@@ -707,6 +760,7 @@ function searchProducts(q) {
       if (f.name.includes(t)) s += (new RegExp("(^|\\s)" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(f.name) ? 6 : 4);
       if (f.cat.includes(t)) s += 3;
       if (f.color.includes(t)) s += 3;
+      if (f.tech.includes(t)) s += 2.5;
       if (f.tags.includes(t)) s += 2;
       if (f.fabric.includes(t)) s += 1;
       if (!s && t.length > 2 && f.desc.includes(t)) s += .5;
@@ -736,24 +790,27 @@ function searchSuggestions() {
   const out = [], add = s => { s = String(s || "").trim(); if (s && !out.some(x => x.toLowerCase() === s.toLowerCase())) out.push(s); };
   [...new Set(PRODUCTS.map(p => p.fit).filter(Boolean))].forEach(add);
   liveCategories().forEach(c => add(c.name));
+  PRODUCTS.forEach(p => (p.techniques || []).forEach(add));
   PRODUCTS.forEach(p => add(String(p.colorName || "").split(" ").pop()));
-  PRODUCTS.forEach(p => { const w = titleOf(p).split(" ")[0]; if (w.length > 3) add(w); });
-  return out.slice(0, 10);
+  return out.slice(0, 8);
 }
 function srTile(p, i, q) {
-  const s = stockInfo(p), n = PRODUCTS.indexOf(p);
+  const s = stockInfo(p), tech = techLabel(p);
   return `<a class="sr-item" id="sr-${i}" role="option" aria-selected="false" href="${productUrl(p)}">
-    <span class="sr-thumb">${n > -1 ? `<span class="sr-idx" aria-hidden="true">[${pad2(n + 1)}]</span>` : ""}${productImage(p)}</span>
+    <span class="sr-thumb">${productImage(p)}${s.soldOut ? `<span class="badge card-badge is-out">Sold out</span>` : ""}</span>
     <span class="sr-text"><span class="sr-name">${q ? highlight(titleOf(p), q) : esc(titleOf(p))}</span>
-    <span class="sr-meta">${q ? highlight(p.colorName || catName(p.category), q) : esc(p.colorName || catName(p.category))}${s.soldOut ? " · Sold out" : s.low ? ` · ${pad2(s.left)} left` : ""}</span>
-    <span class="sr-price">${rupee(p.price)}${discount(p) ? `<s>${rupee(p.mrp)}</s>` : ""}</span></span></a>`;
+    ${tech ? `<span class="sr-meta">${q ? highlight(tech, q) : esc(tech)}</span>` : ""}
+    <span class="sr-price">${rupee(p.price)}${discount(p) ? ` <s>${rupee(p.mrp)}</s>` : ""}</span></span></a>`;
 }
 function openSearch(prefill) {
-  const o = $("#search-overlay"), input = $("input", o); closeDrawers();
+  const o = $("#search-overlay"); if (!o) return;
+  const input = $("input", o);
+  if (!document.body.classList.contains("search-open")) closeDrawers();
   const tr = $(".search-trending", o);
   if (!tr.dataset.ready) {
-    tr.innerHTML = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 8).map((p, i) => srTile(p, "t" + i)).join("");
-    $(".search-chips", o).innerHTML = searchSuggestions().map(s => `<button type="button" class="chip" data-search="${esc(s)}">${esc(s)}</button>`).join("");
+    tr.innerHTML = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 4).map((p, i) => srTile(p, "t" + i)).join("");
+    const sug = searchSuggestions();
+    $(".search-chips", o).innerHTML = sug.length ? `<span class="search-try">Try</span>${sug.map(s => `<button type="button" class="search-chip" data-search="${esc(s)}">${esc(s)}</button>`).join("")}` : "";
     tr.dataset.ready = "1";
   }
   o.inert = false; document.body.classList.add("search-open");
@@ -774,21 +831,23 @@ function runSearch() {
   empty.hidden = true;
   if (!res.length) {
     wrap.hidden = true; none.hidden = false; input.setAttribute("aria-expanded", "false");
-    none.innerHTML = `<p class="search-none-title">Nothing for “${esc(q)}”</p><p>Try ${searchSuggestions().slice(0, 4).map(s => `<button type="button" class="chip" data-search="${esc(s)}">${esc(s)}</button>`).join(" ")}</p>`;
+    const pop = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 4);
+    none.innerHTML = `<p class="search-none-title">No results for “${esc(q)}”</p>
+      <p class="search-none-text">Check the spelling or try ${searchSuggestions().slice(0, 3).map(s => `<button type="button" class="search-chip" data-search="${esc(s)}">${esc(s)}</button>`).join(" ")}</p>
+      <p class="search-label">Popular products</p><div class="search-grid">${pop.map((p, i) => srTile(p, "n" + i)).join("")}</div>`;
     return;
   }
   none.hidden = true; wrap.hidden = false; input.setAttribute("aria-expanded", "true");
-  $(".search-count", o).textContent = `${pad2(res.length)} result${res.length === 1 ? "" : "s"}`;
-  const all = $(".search-all", o); all.href = `shop.html?q=${encodeURIComponent(q)}`; all.hidden = res.length <= 12;
-  list.innerHTML = res.slice(0, 12).map((p, i) => srTile(p, i, q)).join("");
-  const more = res.length < 4 ? uniqueFamilies(PRODUCTS.filter(p => !res.includes(p)).sort((a, b) => rankProduct(b) - rankProduct(a)), 6) : [];
-  $(".search-more", o).innerHTML = more.length ? `<p class="eyebrow">More from ${esc(dropLabel())}</p><div class="search-trending">${more.map((p, i) => srTile(p, "m" + i)).join("")}</div>` : "";
+  $(".search-count", o).textContent = `${res.length} result${res.length === 1 ? "" : "s"}`;
+  const all = $(".search-all", o); all.href = `shop.html?q=${encodeURIComponent(q)}`;
+  list.innerHTML = res.slice(0, 8).map((p, i) => srTile(p, i, q)).join("");
 }
 function initSearch() {
   const o = $("#search-overlay"), input = $("input", o), form = $("form", o);
   $$(".search-toggle").forEach(b => b.addEventListener("click", () => openSearch()));
   $(".search-close", o).addEventListener("click", closeSearch);
-  let t; input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(runSearch, 50); });
+  o.addEventListener("click", e => { if (e.target === o) closeSearch(); });
+  let t; input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(runSearch, 40); });
   $(".search-clear", o).addEventListener("click", () => { input.value = ""; runSearch(); input.focus(); });
   o.addEventListener("click", e => { const c = e.target.closest("[data-search]"); if (c) { input.value = c.dataset.search; runSearch(); input.focus(); } });
   input.addEventListener("keydown", e => {
@@ -808,7 +867,6 @@ function initSearch() {
 }
 
 /* ---------- Cart drawer ---------- */
-let _shipUnlocked = null;
 function openCart() {
   const d = $("#cart-drawer"); if (!d || document.body.classList.contains("cart-open")) return;
   closeDrawers(); renderCart();
@@ -826,44 +884,58 @@ function upsellFor(lines) {
   const groups = new Set(lines.map(l => groupOf(l.p)));
   const want = mixMatchOn() ? (groups.has("Topwear") && !groups.has("Bottoms") ? "Bottoms" : groups.has("Bottoms") && !groups.has("Topwear") ? "Topwear" : null) : null;
   const pool = PRODUCTS.filter(p => isBuyable(p) && !inCart.has(p.id));
-  const rank = p => (want && groupOf(p) === want ? 4 : 0) + (!fams.has(p.family || p.id) ? 3 : 0) + ((p.tags || []).includes("bestseller") ? 2 : 0) + (stockInfo(p).low ? 1 : 0);
-  return uniqueFamilies(pool.sort((a, b) => rank(b) - rank(a)), 3);
+  const rank = p => (want && groupOf(p) === want ? 4 : 0) + (!fams.has(p.family || p.id) ? 3 : 0) + ((p.tags || []).includes("bestseller") ? 2 : 0);
+  return uniqueFamilies(pool.sort((a, b) => rank(b) - rank(a)), 2);
+}
+function cartTile(p) {
+  return `<a class="cart-tile" href="${productUrl(p)}"><span class="cart-tile-media">${productImage(p)}</span>
+    <span class="cart-tile-name">${esc(titleOf(p))}</span><span class="cart-tile-price">${rupee(p.price)}</span></a>`;
+}
+function syncNoteUI() {
+  const d = $("#cart-drawer"); if (!d) return;
+  const n = Cart.note(), gift = $(".cart-gift-input", d), ta = $(".cart-note-input", d), wrap = $(".cart-note-wrap", d), tog = $(".cart-note-toggle", d);
+  gift.checked = n.gift;
+  if (document.activeElement !== ta) ta.value = n.note;
+  const show = n.gift || !!n.note || wrap.dataset.open === "1";
+  wrap.hidden = !show; tog.hidden = show; tog.setAttribute("aria-expanded", String(show));
+  $(".cart-note-label", d).textContent = n.gift ? "Gift note" : "Order note";
+  ta.placeholder = n.gift ? "Write a short message — we'll include it in the package." : "Special instructions, delivery notes…";
 }
 function renderCart() {
   const d = $("#cart-drawer"); if (!d) return;
   const lines = Cart.lines(), sub = Cart.subtotal(), count = Cart.count(), free = +STORE.freeShippingAbove || 0, ds = dropState();
-  $(".drawer-count", d).textContent = count ? `(${pad2(count)})` : "";
+  $(".drawer-count", d).textContent = `(${count})`;
   // Free-shipping progress (persistent elements so the bar animates)
   const ship = $(".cart-ship", d);
-  if (!lines.length || !free) { ship.innerHTML = ""; ship.hidden = true; _shipUnlocked = null; }
+  if (!lines.length || !free) { ship.innerHTML = ""; ship.hidden = true; }
   else {
     ship.hidden = false;
-    if (!$(".ship-bar", ship)) ship.innerHTML = `<p class="ship-msg" aria-live="polite"></p><div class="ship-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to free shipping"><span></span></div><div class="ship-ticks" aria-hidden="true"><span>₹0</span><span>${rupee(free)} · Free</span></div>`;
+    if (!$(".ship-bar", ship)) ship.innerHTML = `<p class="ship-msg" aria-live="polite"></p><div class="ship-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to free shipping"><span></span></div>`;
     const left = free - sub, unlocked = left <= 0, pct = Math.min(100, sub / free * 100);
-    $(".ship-msg", ship).innerHTML = unlocked ? `${ICON.check}<span>Free shipping unlocked</span>` : `<span><b>${rupee(left)}</b> away from free shipping</span>`;
+    $(".ship-msg", ship).innerHTML = unlocked ? `You've unlocked free shipping` : `You're <b>${rupee(left)}</b> away from free shipping`;
     $(".ship-bar", ship).setAttribute("aria-valuenow", String(Math.round(pct)));
     requestAnimationFrame(() => { const s = $(".ship-bar span", ship); if (s) s.style.width = pct + "%"; });
     ship.classList.toggle("is-unlocked", unlocked);
-    if (unlocked && _shipUnlocked === false && document.body.classList.contains("cart-open")) { ship.classList.remove("is-celebrate"); void ship.offsetWidth; ship.classList.add("is-celebrate"); }
-    _shipUnlocked = unlocked;
   }
   // Lines
   const list = $(".cart-lines", d);
   const blocked = lines.filter(l => !isBuyable(l.p) || l.qty > Cart.limit(l.id));
   if (!lines.length) {
+    const picks = uniqueFamilies(PRODUCTS.slice().sort((a, b) => rankProduct(b) - rankProduct(a)), 4);
     list.innerHTML = `<div class="cart-empty">
-      <p class="cart-empty-title">Bag's<span class="outline-text">empty</span></p>
-      <p class="cart-empty-text">${ds.live ? `${esc(dropLabel())} is live with ${PRODUCTS.filter(isBuyable).length} pieces. Limited units — once they're gone, they're gone.` : `${esc(dropLabel())} unlocks soon. Pick your tee now and be ready.`}</p>
-      <a class="btn btn-block" href="shop.html">Shop ${esc(dropLabel())} ${ICON.arrow}</a></div>`;
+      <p class="cart-empty-title">Your cart is empty</p>
+      <a class="btn btn-block" href="shop.html">Continue shopping</a>
+      ${picks.length ? `<p class="cart-empty-label">${ds.live ? "Popular right now" : `${esc(dropLabel())} — opening soon`}</p><div class="cart-tiles">${picks.map(cartTile).join("")}</div>` : ""}
+    </div>`;
   } else {
     list.innerHTML = lines.map(l => {
       const max = Cart.limit(l.id), ok = isBuyable(l.p), s = stockInfo(l.p);
-      const warn = !ok ? (s.soldOut ? "Sold out — remove to check out" : `Unlocks when ${esc(dropLabel())} goes live`) : l.qty > max ? `Only ${max} left — reduce qty` : (s.low ? `Only ${pad2(s.left)} left` : "");
+      const warn = !ok ? (s.soldOut ? "Sold out — please remove to check out" : `Available when ${esc(dropLabel())} opens`) : l.qty > max ? `Only ${max} left — please reduce quantity` : (s.low ? `Only ${s.left} left` : "");
       return `<div class="cart-line${ok ? "" : " is-blocked"}" data-index="${l.index}">
       <a class="cart-thumb" href="${productUrl(l.p)}" tabindex="-1" aria-hidden="true">${productImage(l.p)}</a>
       <div class="cart-info">
         <a class="cart-name" href="${productUrl(l.p)}">${esc(titleOf(l.p))}</a>
-        <span class="cart-variant">${esc(l.p.colorName || "")} · Size ${esc(l.size)}</span>
+        <span class="cart-variant">Size ${esc(l.size)}${l.p.colorName ? ` · ${esc(l.p.colorName)}` : ""}</span>
         ${warn ? `<span class="cart-warn">${warn}</span>` : ""}
         <div class="cart-row">
           <div class="qty qty-sm" role="group" aria-label="Quantity for ${esc(titleOf(l.p))}">
@@ -874,43 +946,52 @@ function renderCart() {
           <button type="button" class="cart-remove" data-cart-remove="${l.index}">Remove</button>
         </div>
       </div>
-      <div class="cart-price"><b>${rupee(l.p.price * l.qty)}</b>${l.p.mrp > l.p.price ? `<s>${rupee(l.p.mrp * l.qty)}</s>` : ""}</div>
+      <div class="cart-price"><span>${rupee(l.p.price * l.qty)}</span>${l.p.mrp > l.p.price ? `<s>${rupee(l.p.mrp * l.qty)}</s>` : ""}</div>
     </div>`; }).join("");
   }
-  // Upsell: "Add one more tee" from products not in the bag (empty bag: the whole drop)
+  // Gift + note (persistent nodes; only shown with items)
+  const extras = $(".cart-extras", d); extras.hidden = !lines.length; syncNoteUI();
+  // Upsell
   const up = $(".cart-upsell", d);
-  const ups = lines.length ? upsellFor(lines) : uniqueFamilies(PRODUCTS.filter(isBuyable).sort((a, b) => rankProduct(b) - rankProduct(a)), 5);
-  const allTees = ups.every(p => p.shape === "tee");
-  const upTitle = lines.length ? (allTees ? "Add one more tee" : "Add one more") : `${dropLabel()} — pick yours`;
-  up.innerHTML = ups.length ? `<div class="cart-upsell-head"><h3>${esc(upTitle)}</h3><span class="mono">${pad2(ups.length)} ${lines.length ? "left to add" : "pieces"}</span></div>
-    <div class="upsell-list">${ups.map(p => miniCard(p, miniSizes(p))).join("")}</div>` : "";
+  const ups = lines.length ? upsellFor(lines) : [];
+  up.innerHTML = ups.length ? `<p class="cart-upsell-head">You may also like</p><div class="upsell-list">${ups.map(p => miniCard(p, miniSizes(p))).join("")}</div>` : "";
   // Footer
-  const save = lines.reduce((s, l) => s + Math.max(0, l.p.mrp - l.p.price) * l.qty, 0);
-  const waMsg = lines.length ? `Hi BHAKSHI, I need help with my bag:\n${lines.map(l => `• ${l.p.name} (Size ${l.size}) × ${l.qty}`).join("\n")}` : "Hi BHAKSHI, I need some help.";
-  const blockMsg = !ds.live ? `Checkout opens when ${dropLabel()} goes live` : blocked.length ? "Fix the flagged items to check out" : "";
+  const waMsg = lines.length ? `Hi BHAKSHI, I have a question about my cart:\n${lines.map(l => `• ${l.p.name} (Size ${l.size}) × ${l.qty}`).join("\n")}` : "Hi BHAKSHI, I need some help.";
+  const blockMsg = !ds.live ? `Checkout opens when ${dropLabel()} goes live` : blocked.length ? "Please update the flagged items to check out" : "";
   $(".cart-foot", d).innerHTML = lines.length ? `
-    <div class="cart-total"><span>Subtotal</span><b>${rupee(sub)}</b></div>
-    ${save > 0 ? `<p class="cart-save">You're saving ${rupee(save)} on MRP</p>` : ""}
-    <p class="cart-note">Shipping &amp; coupons at checkout · UPI${codOn() ? " or Cash on Delivery" : ""}</p>
+    <div class="cart-total"><span>Subtotal</span><span class="cart-total-price">${rupee(sub)}</span></div>
+    <p class="cart-small">Shipping and discount codes calculated at checkout. UPI${codOn() ? " or Cash on Delivery" : ""}.</p>
     ${blockMsg ? `<p class="cart-block-msg">${esc(blockMsg)}</p>` : ""}
-    <a class="btn btn-block btn-lg${blockMsg ? " is-disabled" : ""}" href="checkout.html"${blockMsg ? ' aria-disabled="true" tabindex="-1"' : ""} data-magnetic>Checkout · ${rupee(sub)} ${ICON.arrow}</a>
-    <a class="cart-help" href="${waLink(waMsg)}" target="_blank" rel="noopener">${ICON.wa}<span>Questions? Ask us on WhatsApp</span></a>` : "";
+    <a class="btn btn-block${blockMsg ? " is-disabled" : ""}" href="checkout.html"${blockMsg ? ' aria-disabled="true" tabindex="-1"' : ""}>Check out</a>
+    <a class="cart-help" href="${waLink(waMsg)}" target="_blank" rel="noopener">Questions? Ask us on WhatsApp</a>` : "";
 }
 function initCart() {
   $(".cart-toggle").addEventListener("click", openCart);
   $(".drawer-close").addEventListener("click", closeCart);
   $(".scrim").addEventListener("click", () => { const t = Layers.top(); if (t) t.close(); });
   document.addEventListener("cart:change", () => renderCart());
-  $("#cart-drawer").addEventListener("click", e => {
+  document.addEventListener("cart:note", () => syncNoteUI());
+  const d = $("#cart-drawer");
+  d.addEventListener("click", e => {
     const dec = e.target.closest("[data-cart-dec]"), inc = e.target.closest("[data-cart-inc]"), rm = e.target.closest("[data-cart-remove]");
     if (dec || inc) {
       const i = +(dec || inc).dataset[dec ? "cartDec" : "cartInc"], line = Cart.get()[i]; if (!line) return;
       if (dec && line.qty <= 1) return removeLine(i);
       Cart.setQty(i, line.qty + (dec ? -1 : 1));
-      const out = $(`.cart-line[data-index="${i}"] output`); if (out) bump(out);
+      const btn = $(`.cart-line[data-index="${i}"] [data-cart-${dec ? "dec" : "inc"}]`); if (btn && !btn.disabled) btn.focus({ preventScroll: true });
     }
     if (rm) removeLine(+rm.dataset.cartRemove);
+    if (e.target.closest(".cart-note-toggle")) {
+      const wrap = $(".cart-note-wrap", d); wrap.dataset.open = "1"; syncNoteUI(); $(".cart-note-input", d).focus();
+    }
   });
+  $(".cart-gift-input", d).addEventListener("change", e => {
+    if (e.target.checked) $(".cart-note-wrap", d).dataset.open = "1";
+    Cart.setNote({ gift: e.target.checked });
+    if (e.target.checked) setTimeout(() => $(".cart-note-input", d).focus({ preventScroll: true }), 30);
+  });
+  let nt; $(".cart-note-input", d).addEventListener("input", e => { clearTimeout(nt); const v = e.target.value; nt = setTimeout(() => Cart.setNote({ note: v }), 250); });
+  $(".cart-note-input", d).addEventListener("blur", e => { clearTimeout(nt); Cart.setNote({ note: e.target.value }); });
 }
 function removeLine(i) {
   const el = $(`.cart-line[data-index="${i}"]`), line = Cart.get()[i]; if (!line) return;
@@ -918,9 +999,9 @@ function removeLine(i) {
   const go = () => {
     Cart.remove(i);
     toast(`Removed ${titleOf(p)} (${line.size})`, { type: "info", action: { label: "Undo", onClick: () => Cart.insert(i, line) } });
-    const f = $(".cart-line .qty button, .cart-empty .btn"); if (f) f.focus({ preventScroll: true });
+    const f = $(".cart-line .qty button, .cart-empty .btn"); if (f && document.body.classList.contains("cart-open")) f.focus({ preventScroll: true });
   };
-  if (el && !reducedMotion()) { el.style.height = el.offsetHeight + "px"; void el.offsetHeight; el.classList.add("is-removing"); setTimeout(go, 260); } else go();
+  if (el && !reducedMotion()) { el.style.height = el.offsetHeight + "px"; void el.offsetHeight; el.classList.add("is-removing"); setTimeout(go, 240); } else go();
 }
 
 /* ---------- Toast ---------- */
@@ -931,7 +1012,7 @@ function toast(msg, opts = {}) {
   t.className = `toast toast-${type}`; t.setAttribute("role", type === "error" ? "alert" : "status");
   t.innerHTML = `<span class="toast-icon">${type === "error" ? ICON.alert : type === "info" ? ICON.info : ICON.check}</span><span class="toast-msg"></span>${opts.action ? `<button type="button" class="toast-action"></button>` : ""}<button type="button" class="toast-close" aria-label="Dismiss">${ICON.close}</button>`;
   $(".toast-msg", t).textContent = msg;
-  const kill = () => { if (t._gone) return; t._gone = true; t.classList.remove("is-in"); t.classList.add("is-out"); setTimeout(() => t.remove(), 320); };
+  const kill = () => { if (t._gone) return; t._gone = true; t.classList.remove("is-in"); t.classList.add("is-out"); setTimeout(() => t.remove(), 300); };
   if (opts.action) { const a = $(".toast-action", t); a.textContent = opts.action.label; a.addEventListener("click", () => { kill(); try { opts.action.onClick && opts.action.onClick(); } catch (e) { console.error(e); } }); }
   $(".toast-close", t).addEventListener("click", kill);
   stack.appendChild(t);
@@ -987,7 +1068,7 @@ const Modal = {
         this._pending = null;
         m.classList.remove("is-closing"); m.hidden = true; $(".modal-content", m).innerHTML = ""; $(".modal-panel", m).style.transform = "";
         _emit("modal:close", {}); if (cb) cb(); res();
-      }, reducedMotion() ? 0 : 320);
+      }, reducedMotion() ? 0 : 280);
     });
   }
 };
@@ -1008,35 +1089,30 @@ function initModal() {
   handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
 }
 
-/* ---------- Fly to cart ---------- */
+/* ---------- Fly to cart (quiet: a small image glides to the bag) ---------- */
 function flyToCart(sourceEl) {
   const target = $(".cart-toggle");
-  if (!sourceEl || !target) { bump(target); return Promise.resolve(); }
-  header && header.classList.remove("is-hidden");
+  if (!sourceEl || !target) { bump($(".cart-count")); return Promise.resolve(); }
   let src = sourceEl;
   const card = sourceEl.closest && sourceEl.closest(".card");
   if (card && $(".card-img", card)) src = $(".card-img", card);
   else if (!sourceEl.matches("img,svg") && sourceEl.querySelector && sourceEl.querySelector("img,svg")) src = sourceEl.querySelector("img,svg");
   const r = src.getBoundingClientRect();
-  if (reducedMotion() || !r.width || !document.body.animate) { bump(target); bump($(".cart-count")); return Promise.resolve(); }
+  if (reducedMotion() || !r.width || !document.body.animate) { bump($(".cart-count")); return Promise.resolve(); }
   const ghost = document.createElement("div");
   ghost.className = "fly-ghost";
-  const w = Math.min(r.width, 220), h = w * (r.height / r.width || 1.25);
+  const w = Math.min(r.width, 160), h = w * (r.height / r.width || 1.4);
   Object.assign(ghost.style, { left: (r.left + (r.width - w) / 2) + "px", top: (r.top + (r.height - h) / 2) + "px", width: w + "px", height: h + "px" });
   ghost.appendChild(src.cloneNode(true));
   document.body.appendChild(ghost); _flying++;
   const go = () => {
     const tr = target.getBoundingClientRect();
     const sx = r.left + r.width / 2, sy = r.top + r.height / 2, ex = tr.left + tr.width / 2, ey = tr.top + tr.height / 2;
-    const cx = (sx + ex) / 2 + (ex > sx ? -60 : 60), cy = Math.min(sy, ey) - 160;
-    const frames = [], N = 14, endScale = 22 / w;
-    for (let i = 0; i <= N; i++) {
-      const t = i / N, x = (1 - t) ** 2 * sx + 2 * (1 - t) * t * cx + t * t * ex, y = (1 - t) ** 2 * sy + 2 * (1 - t) * t * cy + t * t * ey;
-      const s = 1 + (endScale - 1) * (t ** 1.4);
-      frames.push({ transform: `translate(${x - sx}px, ${y - sy}px) scale(${s}) rotate(${t * -8}deg)`, opacity: t > .85 ? 1 - (t - .85) / .15 * .7 : 1 });
-    }
-    const anim = ghost.animate(frames, { duration: 780, easing: "cubic-bezier(.55,.05,.35,1)", fill: "forwards" });
-    return anim.finished.catch(() => {}).then(() => { ghost.remove(); _flying = Math.max(0, _flying - 1); bump(target); bump($(".cart-count")); });
+    const anim = ghost.animate([
+      { transform: "translate(0,0) scale(1)", opacity: 1 },
+      { transform: `translate(${ex - sx}px, ${ey - sy}px) scale(${(24 / w).toFixed(3)})`, opacity: .2 }
+    ], { duration: 650, easing: "cubic-bezier(.55,0,.25,1)", fill: "forwards" });
+    return anim.finished.catch(() => {}).then(() => { ghost.remove(); _flying = Math.max(0, _flying - 1); bump($(".cart-count")); });
   };
   return new Promise(res => requestAnimationFrame(() => go().then(res)));
 }
@@ -1057,8 +1133,7 @@ function initDelegates() {
       const id = wish.dataset.wish, p = getProduct(id); if (!p) return;
       const added = Wishlist.toggle(id);
       $$(`[data-wish="${CSS.escape(id)}"]`).forEach(b => { b.classList.remove("is-pop"); void b.offsetWidth; if (added) b.classList.add("is-pop"); });
-      bump($(".wish-link"));
-      toast(added ? `Saved ${titleOf(p)} to wishlist` : `Removed from wishlist`, added
+      toast(added ? `Saved ${titleOf(p)} to your wishlist` : `Removed from wishlist`, added
         ? { type: "success", action: { label: "View", onClick: () => navigate("wishlist.html") } }
         : { type: "info", action: { label: "Undo", onClick: () => Wishlist.add(id) } });
       return;
@@ -1074,12 +1149,13 @@ function initDelegates() {
       if (!line || line.qty === before) return;
       if (!inDrawer) flyToCart(add.closest(".card") || add.closest("[data-fly]") || add);
       add.classList.add("is-added"); setTimeout(() => add.classList.remove("is-added"), 900);
-      toast(`Added ${titleOf(p)} · ${size}`, { type: "success", action: inDrawer ? null : { label: "View bag", onClick: openCart } });
+      toast(`Added ${titleOf(p)} — size ${size}`, { type: "success", action: inDrawer ? null : { label: "View cart", onClick: openCart } });
       return;
     }
     if (e.target.closest("[data-open-cart]")) { e.preventDefault(); openCart(); return; }
     if (e.target.closest("[data-open-search]")) { e.preventDefault(); openSearch(); return; }
-    if (e.target.closest("#mobile-menu [data-fitfinder], #cart-drawer [data-fitfinder]")) { closeDrawers(); return; } // features.js opens the Fit Finder
+    if (e.target.closest("[data-open-menu]")) { e.preventDefault(); openMenu(); return; }
+    if (e.target.closest("#mobile-menu [data-fitfinder], #cart-drawer [data-fitfinder], #search-overlay [data-fitfinder]")) { closeDrawers(); return; } // features.js opens the Fit Finder
     const sn = e.target.closest(".scroller-prev, .scroller-next");
     if (sn) {
       const sc = sn.getAttribute("aria-controls") ? document.getElementById(sn.getAttribute("aria-controls")) : findScroller(sn);
@@ -1087,20 +1163,12 @@ function initDelegates() {
     }
   });
   document.addEventListener("wishlist:change", e => syncHearts(e.detail && e.detail.id));
-  // Card spotlight follows the pointer
-  if (finePointer()) document.addEventListener("pointermove", e => {
-    const m = e.target.closest && e.target.closest(".card-media"); if (!m) return;
-    const r = m.getBoundingClientRect();
-    m.style.setProperty("--mx", ((e.clientX - r.left) / r.width * 100).toFixed(1) + "%");
-    m.style.setProperty("--my", ((e.clientY - r.top) / r.height * 100).toFixed(1) + "%");
-    const alt = $(".card-img-alt", m); if (alt) { alt.style.setProperty("--mx", m.style.getPropertyValue("--mx")); alt.style.setProperty("--my", m.style.getPropertyValue("--my")); }
-  }, { passive: true });
-  // Footer WhatsApp drop alerts
+  // Footer WhatsApp "Get first access"
   const join = $(".wa-join");
   if (join) join.addEventListener("submit", e => {
     e.preventDefault();
-    const name = join.name.value.trim().slice(0, 40);
-    window.open(waLink(`Hi ${STORE.name}! Add me to drop alerts — I want first word on new drops.${name ? " My name is " + name + "." : ""}`), "_blank", "noopener");
+    const name = ($("input", join).value || "").trim().slice(0, 40);
+    window.open(waLink(`Hi ${STORE.name}! Please add me to the first-access list for new drops.${name ? " My name is " + name + "." : ""}`), "_blank", "noopener");
     toast("Opening WhatsApp…", { type: "info" });
   });
 }
@@ -1123,105 +1191,28 @@ function updateScrollerNav(sc) {
 }
 document.addEventListener("scroll", e => { if (e.target.classList && e.target.classList.contains("scroller")) updateScrollerNav(e.target); }, { capture: true, passive: true });
 
-/* ---------- Reveal on scroll (+ tickers, countdowns, data-scramble="in") ---------- */
+/* ---------- Reveal on scroll (+ countdowns) ---------- */
 let _io;
 function refreshReveal(root = document) {
   const scope = root && (root.nodeType === 1 || root === document) ? root : document;
-  const els = $$("[data-reveal], .reveal, [data-scramble='in']", scope);
-  if (scope.matches && scope.matches("[data-reveal], [data-scramble='in']")) els.push(scope);
-  initTickers(scope); initCountdowns(scope);
+  const els = $$("[data-reveal], .reveal", scope);
+  if (scope.matches && scope.matches("[data-reveal], .reveal")) els.push(scope);
+  initCountdowns(scope);
   if (!("IntersectionObserver" in window) || reducedMotion()) { els.forEach(el => el.classList.add("is-in", "in")); return; }
   if (!_io) _io = new IntersectionObserver(entries => entries.forEach(en => {
-    if (en.isIntersecting) { en.target.classList.add("is-in", "in"); if (en.target.dataset.scramble === "in") scramble(en.target, 800); _io.unobserve(en.target); }
-  }), { threshold: .12, rootMargin: "0px 0px -6% 0px" });
+    if (en.isIntersecting) { en.target.classList.add("is-in", "in"); _io.unobserve(en.target); }
+  }), { threshold: .1, rootMargin: "0px 0px -4% 0px" });
   els.forEach(el => {
-    if (el.dataset.reveal === "stagger") [...el.children].forEach((c, i) => c.style.setProperty("--i", Math.min(i, 14)));
+    if (el.dataset.reveal === "stagger") [...el.children].forEach((c, i) => c.style.setProperty("--i", Math.min(i, 12)));
     if (el.dataset.revealBound) return;
     el.dataset.revealBound = "1"; _io.observe(el);
   });
   $$(".scroller").forEach(updateScrollerNav);
 }
 
-/* ---------- Magnetic buttons ---------- */
-function initMagnetic() {
-  if (!finePointer() || reducedMotion()) return;
-  let cur = null;
-  const reset = el => { el.style.translate = ""; };
-  document.addEventListener("pointermove", e => {
-    const m = e.target.closest && e.target.closest("[data-magnetic]");
-    if (m !== cur) { if (cur) reset(cur); cur = m; }
-    if (!m) return;
-    const r = m.getBoundingClientRect();
-    const dx = (e.clientX - (r.left + r.width / 2)) / r.width, dy = (e.clientY - (r.top + r.height / 2)) / r.height;
-    m.style.translate = `${(dx * 10).toFixed(1)}px ${(dy * 6).toFixed(1)}px`;
-  }, { passive: true });
-  document.addEventListener("pointerleave", () => cur && reset(cur));
-}
-
-/* ---------- Custom cursor (fine pointer only, never intercepts events) ---------- */
-function initCursor() {
-  if (!finePointer() || reducedMotion()) return;
-  const dot = document.createElement("div"), ring = document.createElement("div");
-  dot.className = "cursor-dot is-hidden"; ring.className = "cursor-ring is-hidden";
-  dot.setAttribute("aria-hidden", "true"); ring.setAttribute("aria-hidden", "true");
-  dot.innerHTML = "<i></i>"; ring.innerHTML = "<i></i>";
-  document.body.append(ring, dot);
-  const label = $("i", ring);
-  let x = -100, y = -100, rx = x, ry = y, raf = 0, shown = false, lastT = null;
-  const loop = () => {
-    rx += (x - rx) * .22; ry += (y - ry) * .22;
-    ring.style.transform = `translate3d(${rx.toFixed(1)}px,${ry.toFixed(1)}px,0)`;
-    raf = Math.abs(x - rx) + Math.abs(y - ry) > .2 ? requestAnimationFrame(loop) : 0;
-  };
-  const setCls = (k, on) => { dot.classList.toggle(k, on); ring.classList.toggle(k, on); };
-  const state = t => {
-    if (t === lastT || !t || !t.closest) return; lastT = t;
-    const field = t.closest("input, textarea, select, [contenteditable=true], iframe");
-    const view = !field && t.closest(".card-media, [data-cursor]");
-    const link = !field && !view && t.closest("a, button, [role=button], label, summary, .chip, [data-magnetic]");
-    setCls("is-field", !!field); setCls("is-view", !!view); setCls("is-link", !!link);
-    if (view) label.textContent = view.dataset.cursor || "View";
-  };
-  addEventListener("pointermove", e => {
-    if (e.pointerType && e.pointerType !== "mouse") return;
-    x = e.clientX; y = e.clientY;
-    dot.style.transform = `translate3d(${x}px,${y}px,0)`;
-    if (!shown) { shown = true; rx = x; ry = y; document.documentElement.classList.add("has-cursor", "cursor-on"); }
-    setCls("is-hidden", false);
-    state(e.target);
-    if (!raf) raf = requestAnimationFrame(loop);
-  }, { passive: true });
-  document.documentElement.addEventListener("mouseleave", () => setCls("is-hidden", true));
-  addEventListener("pointerdown", () => setCls("is-down", true));
-  addEventListener("pointerup", () => setCls("is-down", false));
-  document.addEventListener("scroll", () => { lastT = null; }, { passive: true, capture: true });
-}
-
-/* ---------- Footer wordmark: fit edge to edge ---------- */
-function fitFooterMark() {
-  const m = $(".footer-mark"), s = m && $("span", m); if (!s) return;
-  m.style.fontSize = "100px";
-  const cs = getComputedStyle(m), avail = m.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), w = s.getBoundingClientRect().width;
-  if (w > 0 && avail > 0) m.style.fontSize = (100 * avail / w * .995).toFixed(2) + "px";
-}
-
-/* ---------- Page transitions ---------- */
-function navigate(url) {
-  if (reducedMotion()) { location.href = url; return; }
-  document.body.classList.add("is-leaving");
-  setTimeout(() => { location.href = url; }, 220);
-}
+/* ---------- Navigation (plain; no page-leave effect in v3) ---------- */
+function navigate(url) { location.href = url; }
 function initTransitions() {
-  addEventListener("click", e => {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest("a[href]"); if (!a) return;
-    if (a.target && a.target !== "_self" || a.hasAttribute("download") || a.closest("[data-no-transition]")) return;
-    const href = a.getAttribute("href"); if (!href || href.startsWith("#") || /^(mailto|tel|javascript|sms|upi):/i.test(href)) return;
-    const url = new URL(a.href, location.href);
-    if (url.origin !== location.origin) return;
-    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
-    e.preventDefault(); navigate(url.href);
-  });
   addEventListener("pageshow", e => { document.body.classList.remove("is-leaving"); if (e.persisted) { closeDrawers(); Modal.close(); } });
 }
 
@@ -1234,17 +1225,11 @@ initSearch();
 initCart();
 initModal();
 initDelegates();
-initScramble();
-initMagnetic();
-initCursor();
 initTransitions();
 renderCart();
 refreshReveal();
-fitFooterMark();
-{ let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { fitFooterMark(); initTickers(); }, 150); }, { passive: true }); }
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitFooterMark(); }).catch(() => {});
 document.addEventListener("DOMContentLoaded", () => {
-  refreshReveal(); syncHearts(); fitFooterMark();
+  refreshReveal(); syncHearts();
   // Auto-pick up content injected later (page scripts may still call refreshReveal()).
   const main = $("main");
   if (main && "MutationObserver" in window) {

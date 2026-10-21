@@ -1,53 +1,54 @@
-# BHAKSHI — Site Architecture & Shared Contract (v2: dark "drop" redesign)
+# BHAKSHI — Site Architecture & Shared Contract (v3: minimal craft streetwear)
 
 Static site (plain HTML/CSS/JS, **no build step, no frameworks, no npm**), live on GitHub Pages at
 `https://bhakshi-clothing.github.io/bhakshi/` — a sub-path, so **all links/paths are relative**
 (`shop.html`, `css/style.css` — never `/shop.html`). Orders go to the owner's WhatsApp; payment by UPI or
 Cash on Delivery. Audience: Indian men 18–50 who like streetwear.
 
-**The business right now:** launching with **Drop 01 — 5 oversized graphic tees** (see `js/products.js`).
-The site must look full and intentional with only 5 products, AND scale gracefully when the owner later
-adds shirts, jeans, joggers etc. (menus, filters and sections appear automatically when data exists).
+**History:** v1 (warm editorial serif) and v2 (dark neon "drop") were both rejected by the owner.
+The owner's reference is **FARAK (farak.co)** — an Indian handmade streetwear label. v3 adopts that
+*kind* of aesthetic (described below) with 100% original BHAKSHI branding, copy, logo and artwork.
+Do NOT copy FARAK's (or anyone's) logo, stamp, text, product names, photos, or exact layouts.
 
-## Brand & design direction — "Dark drop culture"
-A trendy, dark, confident Indian streetwear label. Think limited drops, spec sheets, ticker tapes, graphic
-back prints, big wide type — energetic but premium and clean, never cluttered or cheap. 100% original
-(do NOT copy any other brand's text, logos, graphics, or layouts).
+**The business right now:** Drop 01 — 5 oversized graphic tees (see `js/products.js`). The site must look
+complete with 5 products AND scale when more products/categories are added (menus, filters, sections
+appear automatically from data). Mix & match stays OFF (`STORE.features.mixAndMatch`).
 
-- **Palette (CSS variables in `css/style.css`)** — dark-first:
-  - `--bg:#0a0a0a` (page) `--surface:#121212` `--surface-2:#1a1a1a` `--surface-3:#242424`
-  - `--line:#262626` `--line-2:#383838` (hairlines/borders)
-  - `--text:#f2f1ec` `--text-2:#b9b8b2` `--muted:#7c7b76`
-  - `--accent:#c6ff00` (acid volt — the signature colour; use for CTAs, live dots, highlights, ticker)
-    `--accent-ink:#0a0a0a` (text on accent)
-  - `--hot:#ff3d2e` (low stock / sold out / urgency) `--success:#3ddc84` `--danger:#ff4d4d` `--wa:#25d366`
+## Design direction — "Minimal craft streetwear" (v3)
+Clean, white, quiet, image-led, premium. The product imagery does the talking; UI is thin and restrained.
+- **Palette (CSS variables in `css/style.css`)**: `--bg:#ffffff` `--surface:#f4f3f1` (image backgrounds)
+  `--surface-2:#ecebe8` `--text:#111111` `--text-2:#4a4a4a` `--muted:#8a8a8a` `--line:#e6e6e6`
+  `--line-2:#d4d4d4` `--accent:#111111` (black IS the accent) `--sale:#b3261e` `--success:#1f7a4c`
+  `--wa:#25d366`. No neon, no gradients, no grain, no glow, no dark theme.
 - **Type** — every page `<head>` includes exactly:
   ```html
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
   ```
-  - Display: `--font-display: "Archivo", system-ui, sans-serif` with `font-stretch:125%`, weight 800–900,
-    UPPERCASE, tight tracking (`-0.02em`), line-height ~0.9. Use for headlines, product names on big moments.
-  - Body/UI: `--font-ui: "Archivo", system-ui, sans-serif` (normal width, 400–600).
-  - Mono labels: `--font-mono: "Space Mono", ui-monospace, monospace` — small uppercase metadata with
-    letter-spacing .06–.1em: `[ DROP 01 ]`, `(05)`, `SKU`, `240 GSM`, stock `09 / 40 LEFT`, timestamps.
-- **Shape & texture**: square-ish corners (`--radius-s:2px --radius:4px --radius-l:8px`, pills only for
-  small tags), hairline borders and grid lines instead of soft shadows, a subtle fixed film-grain overlay,
-  occasional accent glow. Product imagery sits on `--surface` panels with a soft spotlight.
-- **Motion** (`--ease: cubic-bezier(.7,0,.2,1)`, snappy): marquee tickers, clip-path image wipes, text
-  scramble/decode on hover for nav + mono labels, hover invert on buttons, card tilt. Always honour
-  `prefers-reduced-motion`.
-- **Quality**: mobile-first and flawless at 360/390, 768, 1280, 1440, 1600 px. Touch targets ≥ 44px.
-  Accessible: contrast ≥ 4.5:1 for body text, labels, alt text, focus-visible rings (accent), keyboard
-  operable modals (Esc, focus trap), `aria-*` where relevant.
-- **Copy voice**: short, punchy, a little playful, Indian everyday references (monsoon, chai, overnight
-  trains, truck art, city streets). No invented reviews, ratings, customer counts, press, or awards.
+  `--font: "Jost", "Helvetica Neue", Arial, sans-serif` for everything.
+  - Wordmark: `B H A K S H I` feel — uppercase, weight 500, letter-spacing ~.35em.
+  - Nav, buttons, labels: uppercase, 12–13px, weight 500, letter-spacing .12–.16em.
+  - Headings: uppercase or title case, weight 400–500, modest sizes (h1 ~28–40px; hero lines up to ~56px),
+    letter-spacing .04–.08em. Nothing ultra-bold or ultra-wide.
+  - Product names: Title Case, 14–15px, weight 400. Technique line: 12–13px muted. Price: `Rs. 899.00`.
+- **Layout**: generous whitespace, full-bleed imagery, thin 1px dividers, **square corners** (radius 0;
+  inputs 0–2px), **no shadows**. Product images are **portrait 5:7** (`aspect-ratio:5/7`) on `--surface`.
+  Grids: 4 columns desktop, 3 tablet, 2 mobile, small gaps (8–16px), text left-aligned under images.
+- **Buttons**: `.btn` = black fill, white uppercase tracked text, square; `.btn-outline` = 1px black border;
+  hover = subtle invert/opacity. Full-width on mobile where sensible.
+- **Motion**: restrained — image crossfade to back view on hover, gentle fade-up reveals, smooth drawers.
+  No custom cursor, no scramble text, no tilt, no marquees (except optionally the announcement bar fade).
+  Honour `prefers-reduced-motion`.
+- **Copy voice**: calm, short, crafted; Indian everyday references are welcome (monsoon, chai, trains,
+  truck art). No invented reviews/ratings/celebrity endorsements/customer counts/press.
+- **Quality**: flawless at 360/390, 768, 1280, 1440 px; touch targets ≥ 44px; accessible (contrast,
+  labels, alt text, focus-visible outlines in black, keyboard modals with Esc + focus trap).
 
 ## Files & ownership (each agent edits ONLY its own files)
 | File(s) | Owner |
 |---|---|
 | `js/products.js` | store owner data — **read-only for agents** |
-| `js/art.js`, `images/*` (favicon.svg, og.svg, og.png, any textures) | Art agent |
+| `js/art.js`, `images/*` (favicon.svg, og.svg, og.png, stamp.svg) | Art agent |
 | `css/style.css`, `js/app.js` | Shell agent |
 | `js/features.js`, `css/features.css`, `wishlist.html` | Features agent |
 | `index.html`, `css/home.css`, `js/home.js` | Home agent |
@@ -59,7 +60,7 @@ back prints, big wide type — energetic but premium and clean, never cluttered 
 <!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>… | BHAKSHI</title><meta name="description" content="…">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta name="theme-color" content="#ffffff">
   <!-- fonts (above) -->
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/features.css">
@@ -75,86 +76,63 @@ back prints, big wide type — energetic but premium and clean, never cluttered 
   <script src="js/PAGE.js"></script>                 <!-- if the page has one -->
 </body></html>
 ```
-`app.js` injects the announcement ticker + header before `<main>` and the footer after it. Scripts are plain
-(non-module) globals. Page scripts run after `app.js`.
 
-## Product data (`js/products.js`, globals `STORE`, `CATEGORIES`, `PRODUCTS`)
-Product: `{ id, family, colorName, fit, fabric, name, category, price, mrp, color, shape, print{front,back}, sizes[], tags[], stock, edition, images[], desc }`
-- `shape` ∈ `tee, polo, shirt, kurta, hoodie, jacket, pants, shorts, coord` (now only `tee` is used).
-- `print.front` / `print.back` ∈ `core, monsoon, chai, express, hornok, logo, ""` — graphic drawn by `Art`
-  when there are no photos. May be missing on future products ⇒ treat as `""`.
-- `mrp === price` ⇒ **no discount**: never show a struck-through MRP or "0% off" in that case.
-- `stock` = units left, `edition` = total units made (may be missing ⇒ just show stock). Low stock ≤ 15.
-- `STORE.drop = { number, name, launch }` — `launch` null ⇒ drop is LIVE. A future ISO date ⇒ show a live
-  countdown and lock buying until then (buttons read "Drops in 02d 14h…" / "Notify me on WhatsApp").
-- `STORE.features.mixAndMatch` (currently **false**) — gates every outfit/mix-and-match/complete-the-look
-  feature. When false (or when there are no bottoms in PRODUCTS), those sections must not render at all
-  (no empty shells). Keep the code ready so flipping the flag turns it on.
-- `STORE.whatsapp` may be `""` (owner hasn't set it yet): checkout already blocks orders in that case;
-  WhatsApp links elsewhere must still not crash (use `waLink(text)` from app.js).
-- Category `group` ∈ `Topwear, Winterwear, Bottoms, Co-ords`. Only categories with ≥1 product are shown.
+## Product data (`js/products.js`: `STORE`, `CATEGORIES`, `PRODUCTS`)
+Product: `{ id, techniques[], family, colorName, fit, fabric, name, category, price, mrp, color, shape, print{front,back}, sizes[], tags[], stock, edition, images[], desc }`
+- `techniques[]` e.g. `["Screen print","Puff print"]` → label `techLabel(p)` = `"Screen print +1"`.
+- `images[]` (owner photos, front first then back, more allowed) override the drawn art everywhere.
+- `mrp === price` ⇒ no discount (no strike). When `mrp > price`: show `Rs. 899.00` then struck `Rs. 1,299.00`.
+- `stock`/`edition`: show "Sold out" when 0; low stock ≤ 10 may show a quiet "Only 9 left" text (no meters).
+- `STORE.drop = { number, name, launch }` — `launch` future ⇒ countdown + buying locked (keep v2 behaviour).
+- `STORE.features.mixAndMatch` — false ⇒ no outfit/complete-the-look UI at all.
+- `STORE.campaign = { hero, heroMobile, banner, story, newsletter }` — owner photo paths; "" ⇒ drawn scene.
+- `STORE.community = [{ image, name, product }]` — "Worn by you" photos; empty ⇒ section hidden (or a
+  small Instagram CTA instead). Never fake people.
+- `STORE.whatsapp` may be `""` ⇒ checkout blocks orders (keep the guard); use `waLink()` for links.
 
 ## `js/art.js` API (global `Art`)
-- `Art.garment(product, { bg = true, view = "front" })` → SVG string (viewBox `0 0 400 500`, width/height
-  100%). `view` ∈ `front | back | detail` (detail = close-up of the print/fabric). Draws `product.print`.
-  `bg:false` ⇒ transparent. Background (when on) is the dark studio look.
-- `Art.print(name, { color })` → SVG of just the graphic (square viewBox `0 0 400 400`, transparent bg),
-  for artwork close-ups/stickers. `color` = the garment colour it sits on (to pick ink colours).
-- `Art.outfit(top, bottom, { bg = true })` → top + bottom together (used only when mixAndMatch is on).
-- `Art.swatch(color)` → small circular swatch (viewBox 0 0 24 24).
+- `Art.garment(product, { bg = true, view = "front" })` → SVG (viewBox **0 0 500 700**, 5:7, width/height
+  100%, `preserveAspectRatio="xMidYMid slice"`). `view` ∈ `front | back | detail | folded`.
+  Look = a **realistic e-commerce packshot**: garment on a soft light-grey studio backdrop (`#f4f3f1`), soft
+  natural contact shadow, true-to-life fabric shading. `bg:false` ⇒ transparent.
+- `Art.campaign(scene, { ratio = "16:9" })` → SVG editorial scene for big image slots when there's no photo.
+  `scene` ∈ `flatlay` (all drop tees laid out), `rail` (tees on hangers on a clothing rail), `stack` (folded
+  stack), `macro` (close-up of a print + fabric), `single:<productId>` (one tee, styled). `ratio` ∈
+  `16:9 | 4:5 | 3:4 | 1:1 | 21:9`. Muted, natural, photographic-feeling palette.
+- `Art.print(name, { color, side })`, `Art.outfit(top, bottom)`, `Art.swatch(color)` as before.
 
 ## `js/app.js` API (globals) — Shell agent implements, everyone may use
-Helpers: `$`, `$$`, `rupee(n)` (₹ en-IN), `esc(str)`, `getProduct(idOrProduct)`, `catName(id)`, `discount(p)`
-(% , 0 when none), `variantsOf(p)`, `productImage(p, i=0, view)`, `waLink(text)` (wa.me link; if
-`STORE.whatsapp` is empty it returns a share link without a number), `liveCategories()` (categories with
-products), `hasBottoms()`, `mixMatchOn()` (= flag && hasBottoms()),
-`stockInfo(p)` → `{ left, total, pct, low, soldOut }`, `dropState()` → `{ live, launch, msLeft }`,
-`isBuyable(p)` (drop live && stock > 0), `countdown(el, launchDate)` (renders/updates `DD:HH:MM:SS`).
-
-Stores (localStorage; each fires a `document` CustomEvent on change):
-- `Cart` — `get() lines() add(id,size,qty) setQty(index,qty) remove(index) clear() subtotal() count()` → `cart:change`
-  (`add` refuses non-buyable products). Key `bhakshi_cart`, lines `{id,size,qty}`.
-- `Wishlist` — `get() has(id) toggle(id) count()` → `wishlist:change`
-- `Recent` — `add(id) list(excludeId)` → returns product objects
-
-UI:
-- `productCard(p)` → HTML string. Markup contract (style changes freely, these hooks stay):
+Everything from v2 stays (helpers, stores, events, Modal, toast, flyToCart, reveal, countdown,
+`isBuyable`, `dropState`, `stockInfo`, `waLink`, `liveCategories`, `hasBottoms`, `mixMatchOn`, …) plus:
+- `rupee(n)` → **`"Rs. 899.00"`** (en-IN grouping, 2 decimals). Use it for every price.
+- `techLabel(p)` → `"Screen print +1"` ("" if none).
+- `campaignImage(slot, { scene, ratio, alt })` → `<img>` of `STORE.campaign[slot]` if set, else `Art.campaign`.
+- `productImage(p, i = 0, view, opts)` → photo `<img>` (`loading="lazy"`) or `Art.garment`.
+- `productCard(p)` markup (style freely; keep these hooks):
   ```html
   <article class="card" data-id="ID">
-    <a class="card-media" href="product.html?id=ID"> badge · front image · back view on hover </a>
+    <a class="card-media" href="product.html?id=ID"> front image · back image (shown on hover) · text badge ("Sold out"/"New") </a>
     <button class="card-wish" data-wish="ID" aria-pressed="false" aria-label="Add to wishlist">…</button>
-    <button class="card-quick" data-quick="ID">Quick view</button>
+    <button class="card-quick" data-quick="ID">Quick add</button>
     <div class="card-sizes"> <button data-add="ID" data-size="M">M</button>… </div>
-    <div class="card-body"> name · price (no strike if no discount) · stock meter · swatches if variants </div>
+    <div class="card-body"> <a class="card-name">Name</a> <p class="card-tech">Screen print +1</p> <p class="card-price">Rs. 899.00</p> </div>
   </article>
   ```
-  Delegated in `app.js`: `[data-wish]`, `[data-add][data-size]`, `[data-open-cart]`, `[data-open-search]`.
-  `[data-quick]` and `[data-fitfinder]` are handled by `features.js`.
-- `openCart()`, `closeCart()`, `closeDrawers()`, `toast(msg, {type, action})`, `flyToCart(sourceEl)`,
-  `Modal.open(html, { size: "s"|"m"|"l"|"sheet", label })` / `Modal.close()`, `refreshReveal()`
-  (`data-reveal`, `data-reveal="stagger"`), `data-magnetic`, `data-scramble` (text decode on hover).
-- Shared classes: `.container`, `.section`, `.section-alt` (surface bg), `.section-accent` (acid bg, dark text),
-  `.section-head`, `.eyebrow` (mono label), `.mono`, `.display-xl|l|m|s`, `.outline-text` (stroked type),
-  `.link-arrow`, `.chip`(+`.active`), `.badge`(+`.badge-accent|.badge-hot|.badge-ghost`), `.grid-products`,
-  `.scroller`, `.field`, `.qty`, `.skeleton`, `.ticker` (marquee), `.stock-meter`, `.live-dot`,
-  `.btn` (accent fill) `.btn-ghost` (outline) `.btn-light` (white fill) `.btn-dark` `.btn-wa`
-  `.btn-block .btn-sm .btn-lg`.
+- Shared classes: `.container` (max ~1440px, side padding 20–48px), `.section`, `.section-alt` (`--surface`),
+  `.section-head`, `.eyebrow`, `.h1/.h2/.h3`, `.link-underline`, `.chip`(+`.active`), `.badge`, `.grid-products`,
+  `.scroller`, `.field`, `.qty`, `.skeleton`, `.btn` `.btn-outline` `.btn-light` `.btn-wa` `.btn-block` `.btn-sm`.
 
-## `js/features.js` API (global)
-- `QuickView.open(id)`; `FitFinder.open({ productId, onPick, onCancel })` (+ `fitfinder:pick` event).
-  If the store sells no bottoms, FitFinder shows only the top size (no waist result).
+## `js/features.js` API
+`QuickView.open(id)`, `FitFinder.open({ productId, onPick, onCancel })` (+ `fitfinder:pick`), `[data-quick]`,
+`[data-fitfinder]` — same behaviour as v2, restyled minimal.
 
 ## Testing
-Local server: `http://localhost:8765/` serves this folder (already running).
-**Real-browser driver** (preferred — real scrolling, clicks, mobile emulation, console capture):
-1. Start your own Chrome on YOUR port (see your prompt) with your own profile:
-   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --remote-debugging-port=PORT --user-data-dir=/tmp/<you>-profile about:blank &`
-2. Write a steps JSON and run `CDP_PORT=PORT node /tmp/bkcdp/drive.mjs steps.json`. Each step may have:
-   `size:[w,h]` (≤600 wide ⇒ mobile emulation), `touch:true|false`, `go:"page.html"` (+`wait` ms),
-   `js:"expression"` (awaited; `print:"label"` logs its JSON value; `after` ms), `shot:"/tmp/<you>/x.png"`.
-   It prints all console errors / exceptions at the end. Scroll gradually in `js` to trigger reveals.
-3. Kill your Chrome when done: `pkill -f "remote-debugging-port=PORT"`.
-Look at your screenshots critically and iterate (≥ 3 rounds). Put temp files in `/tmp/<you>/`; any temp page
-inside the project must be named `_test-<you>.html` and DELETED when done.
-Other agents edit their files concurrently; brief breakage in files you don't own is expected. Never edit
-another agent's file — report cross-file issues in your final report instead.
+Local server `http://localhost:8765/` (running). Real-browser driver: start your own Chrome on YOUR port with
+your own fresh profile —
+`"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --remote-debugging-port=PORT --user-data-dir=/tmp/<you>-profile about:blank &`
+— then `CDP_PORT=PORT node /tmp/bkcdp/drive.mjs steps.json`. Steps: `size:[w,h]` (≤600 ⇒ mobile emulation),
+`touch`, `go:"page.html"` (+`wait`), `js:"expr"` (+`print`, `after`), `shot:"/tmp/<you>/x.png"`. It prints
+console errors at the end. Scroll gradually to trigger reveals. Kill your Chrome when done
+(`pkill -f "remote-debugging-port=PORT"`). Iterate visually ≥ 3 rounds — judge against a top Indian
+premium streetwear site: whitespace, alignment, restraint, image quality. Temp files go in `/tmp/<you>/`;
+any temp page in the project is `_test-<you>.html` and must be DELETED. Never edit another agent's files.

@@ -1,118 +1,92 @@
 <!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About | BHAKSHI</title><meta name="description" content="BHAKSHI is a new Indian streetwear label starting with one drop: oversized 240 GSM graphic tees, printed in small runs and gone when they're gone.">
-  <meta name="theme-color" content="#0a0a0a">
+  <title>About | BHAKSHI</title><meta name="description" content="BHAKSHI is a small Indian streetwear label. Oversized heavyweight tees, printed by hand in small runs and released in numbered drops.">
+  <meta name="theme-color" content="#ffffff">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/features.css">
   <link rel="stylesheet" href="css/pages.css">
   <link rel="icon" href="images/favicon.svg">
 </head>
 <body data-page="about">
-  <main id="main">
+  <main id="main" class="pg">
 
-    <!-- HERO -->
-    <section class="pg-hero pg-hero-about">
-      <div class="container">
-        <nav class="pg-crumbs mono" aria-label="Breadcrumb"><a href="index.html">Home</a><span aria-hidden="true">/</span><span aria-current="page">About</span></nav>
-        <p class="eyebrow" data-reveal>[ About BHAKSHI ]</p>
-        <h1 class="pg-title" data-reveal>New label.<br>One drop.<br><span class="outline-text">Small runs.</span></h1>
-        <div class="pg-hero-foot" data-reveal>
-          <p class="pg-lead">BHAKSHI is an Indian streetwear label starting the honest way — with one drop. Oversized graphic tees in heavyweight cotton, printed in small runs and gone when they're gone.</p>
-          <a class="link-arrow" href="#drop-art">See the artwork</a>
-        </div>
-        <dl class="pg-specs" id="about-specs" data-reveal="stagger"></dl>
-      </div>
-    </section>
+    <!-- INTRO -->
+    <header class="pg-head container">
+      <p class="pg-eyebrow" data-reveal>Our story</p>
+      <h1 class="pg-title" data-reveal>Printed by hand,<br>in small runs.</h1>
+      <p class="pg-lead" data-reveal>BHAKSHI is a small Indian label making oversized tees — heavy cotton, quiet cuts and graphics drawn from everyday life here.</p>
+    </header>
+
+    <figure class="pg-hero-media container" data-reveal>
+      <div class="pg-media pg-media-wide" id="about-hero"></div>
+    </figure>
 
     <!-- WHO WE ARE -->
-    <section class="section">
-      <div class="container pg-split">
-        <figure class="pg-split-art" data-reveal>
-          <div class="pg-frame" id="about-hero-art" aria-hidden="true"></div>
-          <figcaption class="pg-frame-cap mono"><span id="about-hero-cap">Fig. 01 — Back print</span><span>240 GSM</span></figcaption>
-        </figure>
-        <div class="pg-split-text" data-reveal>
-          <p class="eyebrow">01 / Who we are</p>
-          <h2 class="pg-h2">Indian streets,<br>printed heavy.</h2>
-          <p>We're a small label making the tees we couldn't find: heavy enough to hold their shape, cut boxy with dropped shoulders, and carrying graphics that come from here — monsoon evenings, the 4 PM chai break, overnight trains, truck art on the highway.</p>
-          <p>No seasons and no catalogue of hundreds of styles. Just drops: a few designs at a time, made properly, sold direct to you and confirmed one-on-one on WhatsApp.</p>
-          <a class="link-arrow" href="shop.html">Shop the drop</a>
-        </div>
+    <section class="pg-section container pg-row" aria-labelledby="who-h">
+      <h2 class="pg-label" id="who-h">Who we are</h2>
+      <div class="pg-body" data-reveal>
+        <p class="pg-big">We make the tees we couldn't find: heavy enough to hold their shape, cut boxy with dropped shoulders, and carrying graphics that come from here.</p>
+        <p>Monsoon evenings, the 4 PM cutting chai, overnight trains, the painted backs of highway trucks — small, familiar things, drawn carefully and printed onto <span data-about-fabric>heavyweight cotton</span>.</p>
+        <p>No seasons and no catalogue of hundreds of styles. Just a few designs at a time, made properly, sold directly to you and confirmed one-on-one on WhatsApp.</p>
       </div>
     </section>
 
-    <div class="pg-marquee" aria-hidden="true"><div class="pg-marquee-track" id="about-marquee"></div></div>
-
-    <!-- WHY DROPS -->
-    <section class="section section-accent pg-why">
-      <div class="container">
-        <div class="pg-section-intro" data-reveal>
-          <p class="eyebrow">02 / Why drops</p>
-          <h2 class="pg-h2">Made in small runs.<br>On purpose.</h2>
-        </div>
-        <div class="pg-why-grid" data-reveal="stagger">
-          <article class="pg-why-card">
-            <span class="pg-why-no mono">(01)</span>
-            <h3>Limited units</h3>
-            <p>Every design is made in a fixed run, and the counter on each tee shows exactly how many are left. <span class="mono">09 / 40</span> means nine.</p>
-          </article>
-          <article class="pg-why-card">
-            <span class="pg-why-no mono">(02)</span>
-            <h3>No endless restocks</h3>
-            <p>When a design sells out, that's usually it. We'd rather make something new than reprint the same tee forever.</p>
-          </article>
-          <article class="pg-why-card">
-            <span class="pg-why-no mono">(03)</span>
-            <h3>Less waste</h3>
-            <p>Small runs mean we make close to what people actually buy — fewer unsold boxes and less dead stock sitting in a warehouse.</p>
-          </article>
-        </div>
+    <!-- SMALL RUNS -->
+    <section class="pg-section container pg-split" aria-labelledby="runs-h">
+      <figure class="pg-split-media" data-reveal><div class="pg-media pg-media-tall" id="about-runs-art"></div><figcaption class="pg-cap" id="about-runs-cap"></figcaption></figure>
+      <div class="pg-split-text" data-reveal>
+        <h2 class="pg-label" id="runs-h">Printed by hand in small runs</h2>
+        <p class="pg-big">Every design is made in a fixed, numbered run — <span id="about-run-size">a few dozen pieces</span>, not thousands.</p>
+        <p>Prints are pulled by hand, one colour at a time, then each tee is washed, checked for print, stitching and measurements, and folded before it leaves us. Working this way is slower, and the small differences from piece to piece are part of it.</p>
+        <p>Small runs also mean we make close to what people actually buy — less dead stock, fewer unsold boxes.</p>
       </div>
     </section>
 
-    <!-- HOW IT'S MADE -->
-    <section class="section">
+    <!-- TECHNIQUES -->
+    <section class="pg-section container" aria-labelledby="tech-h">
+      <div class="pg-row pg-row-head">
+        <h2 class="pg-label" id="tech-h">The techniques</h2>
+        <p class="pg-body pg-big" data-reveal>A handful of ways we put a graphic onto cotton. Each tee lists the ones it uses, right under its name.</p>
+      </div>
+      <div class="pg-tech" id="about-tech" data-reveal="stagger"></div>
+    </section>
+
+    <!-- HOW A DROP WORKS -->
+    <section class="pg-section pg-band" aria-labelledby="drop-h">
       <div class="container">
-        <div class="pg-section-intro pg-section-intro-row" data-reveal>
-          <div><p class="eyebrow">03 / How it's made</p>
-          <h2 class="pg-h2">Five steps.<br>No shortcuts.</h2></div>
-          <p>From a sketch to your door — every tee goes through the same five stops.</p>
+        <div class="pg-row pg-row-head">
+          <h2 class="pg-label" id="drop-h">How a drop works</h2>
+          <p class="pg-body pg-big" data-reveal>We release designs together, as a numbered drop. <span id="about-drop-now"></span></p>
         </div>
-        <ol class="pg-process" data-reveal="stagger">
-          <li><span class="pg-process-no mono">01</span><h3>Design</h3><p>Artwork starts as sketches of things we see every day, then gets redrawn until it holds up at full back-print size.</p></li>
-          <li><span class="pg-process-no mono">02</span><h3>Print</h3><p>Graphics go onto 240 GSM cotton — big back panels, small chest marks.</p></li>
-          <li><span class="pg-process-no mono">03</span><h3>Wash</h3><p>Each tee is bio-washed for a softer, lived-in feel from the very first wear.</p></li>
-          <li><span class="pg-process-no mono">04</span><h3>Check</h3><p>Every piece is checked for print, stitching and measurements before it's folded.</p></li>
-          <li><span class="pg-process-no mono">05</span><h3>Pack</h3><p>Folded, packed and sent your way, with the tracking link shared on WhatsApp.</p></li>
+        <ol class="pg-steps" data-reveal="stagger">
+          <li><span class="pg-step-no">01</span><h3>Drawn</h3><p>Each graphic starts as a sketch of something we see every day, then gets redrawn until it holds up at full back-print size.</p></li>
+          <li><span class="pg-step-no">02</span><h3>Made in a small run</h3><p id="about-step-run">Every design is printed in a fixed, limited quantity on heavyweight cotton.</p></li>
+          <li><span class="pg-step-no">03</span><h3>Released together</h3><p id="about-step-drop">The designs go live at the same time as one drop. If there's a launch time, the shop shows a countdown until then.</p></li>
+          <li><span class="pg-step-no">04</span><h3>Gone when it's gone</h3><p>When a run sells out, that's usually it. We'd rather make something new than reprint the same tee forever.</p></li>
         </ol>
       </div>
     </section>
 
-    <!-- ARTWORK GALLERY -->
-    <section class="section section-alt" id="drop-art">
-      <div class="container">
-        <div class="pg-section-intro pg-section-intro-row" data-reveal>
-          <div><p class="eyebrow" id="about-art-eyebrow">04 / The artwork</p>
-          <h2 class="pg-h2">The drop,<br>up close.</h2></div>
-          <p>Every graphic, drawn in-house. Hover to see it on the tee — tap through to shop it.</p>
-        </div>
+    <!-- THE TEES -->
+    <section class="pg-section container" aria-labelledby="tees-h">
+      <div class="pg-row-between">
+        <h2 class="pg-h2" id="tees-h">The drop</h2>
+        <a class="link-underline" href="shop.html">Shop all</a>
       </div>
-      <div class="pg-gallery" id="about-gallery" data-reveal="stagger"></div>
+      <div class="pg-tees" id="about-tees"></div>
     </section>
 
     <!-- CTA -->
-    <section class="section pg-cta">
-      <div class="container pg-cta-inner" data-reveal>
-        <p class="eyebrow"><span class="live-dot" id="about-cta-dot" aria-hidden="true"></span> <span id="about-cta-state">[ Drop 01 is live ]</span></p>
-        <h2 class="pg-title pg-title-m" id="about-cta-title">Drop 01</h2>
-        <p class="pg-cta-cd mono" id="about-cta-cd" hidden></p>
-        <p class="pg-cta-facts mono">Free shipping above <span data-store-rupee="freeShippingAbove"></span> · 7-day size exchange · UPI or Cash on Delivery</p>
-        <div class="pg-cta-btns">
-          <a class="btn btn-lg" href="shop.html" data-magnetic>Shop the drop</a>
-          <a class="btn btn-ghost btn-lg" data-wa-link href="#" target="_blank" rel="noopener">Say hello on WhatsApp</a>
-        </div>
+    <section class="pg-section pg-cta container" aria-labelledby="cta-h" data-reveal>
+      <p class="pg-eyebrow" id="about-cta-eyebrow">Drop 01</p>
+      <h2 class="pg-title pg-title-s" id="cta-h">Wear something made slowly.</h2>
+      <p class="pg-cta-cd" id="about-cta-cd" hidden></p>
+      <p class="pg-cta-facts">Free shipping above <span data-store-rupee="freeShippingAbove"></span> · 7-day size exchange · UPI or Cash on Delivery</p>
+      <div class="pg-btns">
+        <a class="btn" href="shop.html">Shop the drop</a>
+        <a class="btn btn-outline" data-wa-link href="#" target="_blank" rel="noopener">Say hello on WhatsApp</a>
       </div>
     </section>
   </main>
@@ -122,68 +96,82 @@
   <script src="js/features.js"></script>
   <script>
   (() => {
-    const art = fn => { try { return fn(); } catch (e) { return ""; } };
-    const pad2 = n => String(n).padStart(2, "0");
+    const g = id => document.getElementById(id);
+    const safe = fn => { try { return fn() || ""; } catch (e) { return ""; } };
     const list = PRODUCTS.slice();
     const dropNo = (STORE.drop && STORE.drop.number) || "01";
     const dropName = (STORE.drop && STORE.drop.name) || "";
-    const printOf = p => (p.print && (p.print.back || p.print.front)) || "";
+    const dropTitle = `Drop ${dropNo}${dropName ? " — " + dropName : ""}`;
+    const nameOf = p => String(p.name).split(" — ")[0];
+    const tech = p => typeof techLabel === "function" ? techLabel(p) : (p.techniques || []).length ? p.techniques[0] + (p.techniques.length > 1 ? " +" + (p.techniques.length - 1) : "") : "";
 
-    // spec sheet — every value comes from products.js
-    const uniq = a => [...new Set(a.filter(Boolean))];
-    const fabric = uniq(list.map(p => p.fabric));
-    const fits = uniq(list.map(p => p.fit));
-    const gsm = fabric.length === 1 && /(\d+)\s*GSM/i.exec(fabric[0]);
-    const units = list.length && list.every(p => p.edition) ? list.reduce((s, p) => s + p.edition, 0) : 0;
-    const specs = [
-      ["Drop", `${dropNo}${dropName ? " — " + dropName : ""}`],
-      ["Designs", pad2(list.length)],
-      fits.length === 1 ? ["Fit", fits[0]] : null,
-      fabric.length === 1 ? ["Fabric", fabric[0].split(",")[0] + (gsm ? ", " + gsm[0] : "")] : null,
-      units ? ["Units made", String(units)] : null
-    ].filter(Boolean);
-    const specEl = document.getElementById("about-specs");
-    if (specEl) specEl.innerHTML = specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+    // big story image: owner photo (STORE.campaign.story) or the drawn macro scene
+    const heroAlt = "Close-up of a hand-printed BHAKSHI graphic on heavyweight cotton";
+    const featured = list.find(p => p.print && p.print.back && p.print.back !== "logo") || list[0];
+    g("about-hero").innerHTML =
+      (typeof campaignImage === "function" && safe(() => campaignImage("story", { scene: "macro", ratio: "16:9", alt: heroAlt }))) ||
+      (STORE.campaign && STORE.campaign.story ? `<img src="${esc(STORE.campaign.story)}" alt="${esc(heroAlt)}">` : "") ||
+      (typeof Art !== "undefined" && Art.campaign && safe(() => Art.campaign("macro", { ratio: "16:9" }))) ||
+      (featured ? productImage(featured, 1, "back") : "");
 
-    // hero artwork: back view of the first tee with a full back print
-    const hero = list.find(p => printOf(p) && printOf(p) !== "logo") || list[0];
-    const heroEl = document.getElementById("about-hero-art");
-    if (heroEl && hero) {
-      heroEl.innerHTML = art(() => Art.garment(hero, { view: "back" }));
-      document.getElementById("about-hero-cap").textContent = `Fig. 01 — ${hero.name}, back`;
+    // small-runs image: the back of a tee with a full back print
+    const runP = list.find(p => p.print && p.print.back === "hornok") || featured;
+    if (runP) {
+      g("about-runs-art").innerHTML = productImage(runP, 1, "back");
+      g("about-runs-cap").textContent = `${nameOf(runP)}, back`;
     }
 
-    // marquee
-    const words = ["240 GSM", "Bio-washed", "Oversized fit", "Printed in small runs", `Drop ${dropNo}`, STORE.tagline || "Made in India"];
-    const run = words.map(w => `<span>${esc(w)}</span><i>✱</i>`).join("");
-    const mq = document.getElementById("about-marquee");
-    if (mq) mq.innerHTML = `<div>${run}</div><div>${run}</div>`;
-
-    // artwork gallery
-    const total = pad2(list.length);
-    document.getElementById("about-art-eyebrow").textContent = `04 / The artwork (${total})`;
-    const gal = document.getElementById("about-gallery");
-    if (gal) gal.innerHTML = list.map((p, i) => {
-      const pr = printOf(p);
-      const front = pr && pr !== "logo" ? art(() => Art.print(pr, { color: p.color })) : art(() => Art.garment(p, { view: "back", bg: false }));
-      const back = art(() => Art.garment(p, { view: "back" }));
-      return `<a class="pg-art" href="product.html?id=${encodeURIComponent(p.id)}" style="--tee:${esc(p.color)}">
-        <span class="pg-art-media" aria-hidden="true"><span class="pg-art-print">${front}</span><span class="pg-art-tee">${back}</span></span>
-        <span class="pg-art-cap"><span class="mono">${pad2(i + 1)} / ${total}</span><b>${esc(p.name)}</b><span class="mono">${esc(p.colorName || "")}</span></span>
-      </a>`;
-    }).join("");
-
-    // CTA: live vs countdown
+    // facts that come straight from products.js
+    const fabrics = [...new Set(list.map(p => p.fabric).filter(Boolean))];
+    if (fabrics.length === 1) document.querySelectorAll("[data-about-fabric]").forEach(e => e.textContent = fabrics[0].split(",").slice(0, 2).join(",").replace("100% Cotton", "100% cotton"));
+    const eds = list.map(p => +p.edition).filter(n => n > 0);
+    if (eds.length) {
+      const lo = Math.min(...eds), hi = Math.max(...eds), range = lo === hi ? `${lo}` : `${lo}–${hi}`;
+      g("about-run-size").textContent = `${range} pieces each`;
+      g("about-step-run").textContent = `Every design is printed in a fixed run — ${range} pieces in ${dropTitle} — on heavyweight cotton.`;
+    }
     const ds = typeof dropState === "function" ? dropState()
       : { live: !(STORE.drop && STORE.drop.launch) || new Date(STORE.drop.launch) <= new Date(), launch: STORE.drop && STORE.drop.launch ? new Date(STORE.drop.launch) : null };
-    document.getElementById("about-cta-title").textContent = `Drop ${dropNo}${dropName ? " — " + dropName : ""}`;
-    if (!ds.live) {
-      document.getElementById("about-cta-state").textContent = `[ Drop ${dropNo} — coming soon ]`;
-      document.getElementById("about-cta-dot").hidden = true;
-      const cd = document.getElementById("about-cta-cd");
-      if (cd && ds.launch) { cd.hidden = false; if (typeof countdown === "function") countdown(cd, ds.launch); else cd.textContent = new Date(ds.launch).toLocaleString("en-IN"); }
-    } else document.getElementById("about-cta-state").textContent = `[ Drop ${dropNo} is live ]`;
+    g("about-drop-now").textContent = `${dropTitle} has ${list.length} design${list.length === 1 ? "" : "s"}${ds.live ? " and is live now." : " and opens soon."}`;
 
+    // techniques, built from the product data
+    const ABOUT = {
+      "screen print": "Ink pushed through a fine mesh screen, one colour at a time. It sinks into the cotton and softens with every wash.",
+      "puff print": "A special ink that rises as it's heat-cured, so parts of the graphic stand slightly off the tee — you can feel it.",
+      "hand embroidery": "Stitched by hand, thread by thread. Slower than printing, and every piece comes out a little different.",
+      "hand painted": "Details finished with a brush after printing, so no two tees are exactly alike.",
+      "discharge print": "Removes the dye from the fabric instead of sitting on top, for a print you can barely feel.",
+      "acid wash": "Washed by hand for a worn-in, uneven tone that's different on every piece.",
+      "applique": "Fabric cut and stitched onto the tee for texture you can see and feel."
+    };
+    const techs = [];
+    list.forEach(p => (p.techniques || []).forEach(t => { let e = techs.find(x => x.name.toLowerCase() === t.toLowerCase()); if (!e) techs.push(e = { name: t, items: [] }); e.items.push(p); }));
+    const techEl = g("about-tech");
+    techEl.style.setProperty("--cols", Math.min(4, Math.max(1, techs.length)));
+    if (techs.length) techEl.innerHTML = techs.map((t, i) => `
+      <article class="pg-tech-item">
+        <span class="pg-step-no">${String(i + 1).padStart(2, "0")}</span>
+        <h3>${esc(t.name)}</h3>
+        <p>${esc(ABOUT[t.name.toLowerCase()] || "One of the ways we finish our pieces by hand.")}</p>
+        <p class="pg-tech-on">Used on ${t.items.map(p => `<a href="product.html?id=${encodeURIComponent(p.id)}">${esc(nameOf(p))}</a>`).join(", ")}</p>
+      </article>`).join("");
+    else techEl.closest("section").hidden = true;
+
+    // the tees
+    g("about-tees").innerHTML = list.map(p => `
+      <a class="pg-tee" href="product.html?id=${encodeURIComponent(p.id)}">
+        <span class="pg-tee-media">${productImage(p)}</span>
+        <span class="pg-tee-name">${esc(nameOf(p))}</span>
+        ${tech(p) ? `<span class="pg-tee-tech">${esc(tech(p))}</span>` : ""}
+        <span class="pg-tee-price">${rupee(p.price)}</span>
+      </a>`).join("");
+
+    // CTA
+    g("about-cta-eyebrow").textContent = dropTitle;
+    if (!ds.live && ds.launch) {
+      const cd = g("about-cta-cd"); cd.hidden = false;
+      if (typeof countdown === "function") countdown(cd, ds.launch); else cd.textContent = "Opens " + new Date(ds.launch).toLocaleString("en-IN");
+    }
     document.querySelectorAll("[data-store-rupee]").forEach(el => el.textContent = rupee(STORE[el.dataset.storeRupee]));
     document.querySelectorAll("[data-wa-link]").forEach(a => a.href = waLink(`Hi ${STORE.name}! I have a question.`));
     if (typeof refreshReveal === "function") refreshReveal();

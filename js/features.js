@@ -1,8 +1,9 @@
-/* BHAKSHI — features (v2 "dark drop"): Quick View, Fit Finder, Wishlist page.
+/* BHAKSHI — features (v3 "minimal craft"): Quick View, Fit Finder, Wishlist page.
    Globals exposed: QuickView.open(id), FitFinder.open({ productId, onPick, onCancel }) (+ "fitfinder:pick" event).
    Delegated handlers: [data-quick] (quick view) and [data-fitfinder] (size quiz, optional data-product).
    Depends on app.js (Modal, Cart, Wishlist, Recent, productCard, productImage, variantsOf, waLink, stockInfo,
-   dropState, isBuyable, hasBottoms, toast, flyToCart) — every call is guarded so a missing helper never crashes. */
+   dropState, isBuyable, hasBottoms, rupee, techLabel, toast, flyToCart) — every call is guarded so a missing
+   helper never crashes. */
 
 (() => {
   "use strict";
@@ -12,9 +13,9 @@
   const API = () => ({
     esc: typeof esc === "function" ? esc : null,
     rupee: typeof rupee === "function" ? rupee : null,
+    techLabel: typeof techLabel === "function" ? techLabel : null,
     getProduct: typeof getProduct === "function" ? getProduct : null,
     discount: typeof discount === "function" ? discount : null,
-    catName: typeof catName === "function" ? catName : null,
     variantsOf: typeof variantsOf === "function" ? variantsOf : null,
     productImage: typeof productImage === "function" ? productImage : null,
     productCard: typeof productCard === "function" ? productCard : null,
@@ -35,16 +36,17 @@
   const recentStore = () => (typeof Recent !== "undefined" ? Recent : null);
 
   const E = s => call("esc", s) ?? String(s ?? "").replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-  const money = n => call("rupee", n) ?? "₹" + Number(n || 0).toLocaleString("en-IN");
+  const money = n => call("rupee", n) ?? "Rs. " + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const find = id => call("getProduct", id) ?? (id && typeof id === "object" ? id : PRODUCTS.find(p => p.id === id));
   const off = p => call("discount", p) ?? (p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
-  const category = id => call("catName", id) ?? id;
+  const techs = p => (p.techniques || []).filter(Boolean);
+  const tech = p => { const t = call("techLabel", p); if (typeof t === "string") return t; const a = techs(p); return a.length ? a[0] + (a.length > 1 ? ` +${a.length - 1}` : "") : ""; };
   const variants = p => call("variantsOf", p) ?? (p.family ? PRODUCTS.filter(x => x.family === p.family) : [p]);
   const pic = (p, i = 0, view = "front") => call("productImage", p, i, view) ?? (typeof Art !== "undefined" ? Art.garment(p, { view }) : "");
   const say = (msg, type) => { call("toast", msg, { type }); };
   const wa = text => call("waLink", text) ?? `https://wa.me/${encodeURIComponent((typeof STORE !== "undefined" && STORE.whatsapp) || "")}?text=${encodeURIComponent(text)}`;
   const reduced = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const mobile = () => window.matchMedia && matchMedia("(max-width: 859.98px)").matches;
+  const mobile = () => window.matchMedia && matchMedia("(max-width: 899.98px)").matches;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const pad = n => String(n).padStart(2, "0");
   const hasModal = () => !!modal();
@@ -52,18 +54,15 @@
   const hostOf = (host, sel) => (host && host.matches && host.matches(sel) ? host : host && host.querySelector && host.querySelector(sel))
     || [...document.querySelectorAll(sel)].pop() || null;
   const wished = id => { const w = wishStore(); return !!(w && w.has(id)); };
-  const tagsOf = p => p.tags || [];
-  const printOf = (p, side) => (p.print && p.print[side]) || "";
+  const brand = () => (typeof STORE !== "undefined" && STORE.name) || "BHAKSHI";
+  const dropNo = () => (typeof STORE !== "undefined" && STORE.drop && STORE.drop.number) || "01";
+  const dropName = () => (typeof STORE !== "undefined" && STORE.drop && STORE.drop.name) || "";
+  const LOW = 10;   // "Only 9 left" threshold (quiet text, no meters)
 
   function stockOf(p) {
-    const left = Math.max(0, Number(p.stock) || 0), total = Number(p.edition) || 0;
+    const left = Math.max(0, Number(p.stock) || 0);
     const s = call("stockInfo", p) || {};
-    return {
-      left, total,
-      pct: total ? clamp(left / total * 100, 0, 100) : 100,
-      low: s.low ?? (left > 0 && left <= 15),
-      soldOut: s.soldOut ?? left <= 0
-    };
+    return { left, low: left > 0 && left <= LOW, soldOut: s.soldOut ?? left <= 0 };
   }
   function drop() {
     const d = call("dropState");
@@ -78,13 +77,6 @@
     if (typeof b === "boolean") return b;
     return PRODUCTS.some(p => ["pants", "shorts"].includes(p.shape) || (CATEGORIES.find(c => c.id === p.category) || {}).group === "Bottoms");
   };
-  const dropNo = () => (typeof STORE !== "undefined" && STORE.drop && STORE.drop.number) || "01";
-  /* No. 0X = position of the product's family in the catalogue */
-  function serial(p) {
-    const fams = [];
-    PRODUCTS.forEach(x => { const f = x.family || x.id; if (!fams.includes(f)) fams.push(f); });
-    return pad(fams.indexOf(p.family || p.id) + 1);
-  }
   function fmtLeft(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
     const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
@@ -103,14 +95,10 @@
   }
 
   const ICON = {
-    heart: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.4C1.4 7.6 3.6 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.6 0 5.8 3.6 4.5 7.1-1.8 4.8-9.3 9.4-9.3 9.4z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
-    chevL: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`,
-    arrow: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`,
-    flip: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2M20 4v4h-4M4 20v-4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/></svg>`,
-    tape: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 7h13a5 5 0 0 1 0 10H3z M7 7v4 M11 7v3 M15 7v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
-    check: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/></svg>`,
-    lock: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`,
-    wa: `<svg viewBox="0 0 32 32" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M16 3a13 13 0 0 0-11.2 19.6L3 29l6.6-1.7A13 13 0 1 0 16 3zm0 23.6a10.6 10.6 0 0 1-5.4-1.5l-.4-.2-3.9 1 1-3.8-.2-.4A10.6 10.6 0 1 1 16 26.6zm5.8-7.9c-.3-.2-1.9-.9-2.2-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7 0a8.7 8.7 0 0 1-4.3-3.8c-.3-.6.3-.5 1-1.7.1-.2 0-.4 0-.5l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.7 3.7 0 0 0-1.1 2.7 6.4 6.4 0 0 0 1.3 3.4 14.7 14.7 0 0 0 5.6 5c2.1.9 2.9 1 4 .8a3.4 3.4 0 0 0 2.2-1.6 2.8 2.8 0 0 0 .2-1.6c-.1-.1-.3-.2-.6-.4z"/></svg>`
+    heart: `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 20s-7.2-4.4-8.9-9C1.9 7.7 4 4.5 7.3 4.5c1.9 0 3.5 1 4.7 2.7 1.2-1.7 2.8-2.7 4.7-2.7 3.3 0 5.4 3.2 4.2 6.5-1.7 4.6-8.9 9-8.9 9z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>`,
+    back: `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M20 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+    share: `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 12v8h14v-8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+    check: `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`
   };
 
   /* =====================================================================
@@ -120,140 +108,104 @@
     let st = null;     // { id, view, size, qty }
     let root = null;   // .qv element inside the modal
 
-    /* faces available for a product: drawn art always has front/back/detail; photos use what exists */
+    /* views available: photos use what exists; drawn art has front / back / detail */
+    const VIEWS = { front: "Front", back: "Back", detail: "Detail" };
     function facesOf(p) {
       const photos = (p.images || []).filter(Boolean);
-      if (photos.length) {
-        const f = { front: pic(p, 0) };
-        if (photos[1]) f.back = pic(p, 1);
-        if (photos[2]) f.detail = pic(p, 2);
-        return f;
-      }
-      return { front: pic(p, 0, "front"), back: pic(p, 0, "back"), detail: pic(p, 0, "detail") };
-    }
-    const VIEWS = { front: "Front", back: "Back", detail: "Detail" };
-
-    function badgeOf(p, s) {
-      const pct = off(p);
-      if (s.soldOut) return `<span class="badge badge-hot">Sold out</span>`;
-      if (s.low) return `<span class="badge badge-hot">Low stock</span>`;
-      if (pct > 0) return `<span class="badge badge-accent">−${pct}%</span>`;
-      if (tagsOf(p).includes("bestseller")) return `<span class="badge badge-accent">Bestseller</span>`;
-      if (tagsOf(p).includes("new")) return `<span class="badge badge-ghost">New</span>`;
-      return "";
-    }
-
-    function stockMeter(s) {
-      if (s.soldOut) return `<div class="qv-stock is-out"><div class="qv-stock-top"><span>Stock</span><b>Sold out</b></div><div class="qv-stock-bar"><i style="width:0"></i></div></div>`;
-      const txt = s.total ? `${pad(s.left)} / ${pad(s.total)} left` : `${pad(s.left)} left`;
-      return `<div class="qv-stock${s.low ? " is-low" : ""}" role="meter" aria-valuemin="0" aria-valuemax="${s.total || s.left}" aria-valuenow="${s.left}" aria-label="Units left">
-        <div class="qv-stock-top"><span>${s.low ? `<i class="qv-live" aria-hidden="true"></i>Going fast` : "Stock"}</span><b>${txt}</b></div>
-        <div class="qv-stock-bar"><i style="width:${s.pct.toFixed(1)}%"></i></div>
-      </div>`;
+      if (photos.length) return photos.map((_, i) => ({ key: "v" + i, label: i === 0 ? "Front" : i === 1 ? "Back" : `View ${i + 1}`, html: pic(p, i) }));
+      return ["front", "back", "detail"].map(k => ({ key: k, label: VIEWS[k], html: pic(p, 0, k) }));
     }
 
     function buyRow(p, s, d) {
       const wish = `<button type="button" class="qv-wish" data-wish="${E(p.id)}" aria-pressed="${wished(p.id)}" aria-label="${wished(p.id) ? "Remove from wishlist" : "Add to wishlist"}">${ICON.heart}</button>`;
       if (!d.live) {
         return `<div class="qv-buy qv-buy-locked">
-          <button type="button" class="btn btn-ghost qv-add qv-locked" disabled aria-disabled="true">${ICON.lock}<span>Drops in <span class="mono" data-cd>${fmtLeft(d.msLeft)}</span></span></button>
-          ${wish}
-          <a class="btn btn-wa qv-notify" href="${E(wa(`Hi ${STORE.name}! Ping me when Drop ${dropNo()} goes live — I want the ${p.name}.`))}" target="_blank" rel="noopener">${ICON.wa}<span>Notify me on WhatsApp</span></a>
+          <div class="qv-buy-row">
+            <button type="button" class="btn btn-block qv-add" disabled aria-disabled="true">Available in&nbsp;<span class="qv-cd" data-cd>${fmtLeft(d.msLeft)}</span></button>
+            ${wish}
+          </div>
+          <a class="btn btn-outline btn-block qv-notify" href="${E(wa(`Hi ${brand()}! Please let me know when Drop ${dropNo()} goes live. I'd like the ${p.name}.`))}" target="_blank" rel="noopener">Notify me</a>
         </div>`;
       }
       if (s.soldOut || !buyable(p)) {
         return `<div class="qv-buy qv-buy-out">
-          <a class="btn btn-wa qv-add" href="${E(wa(`Hi ${STORE.name}! Please tell me if the ${p.name} (${p.colorName || ""}) restocks.`))}" target="_blank" rel="noopener">${ICON.wa}<span>Notify me</span></a>
-          ${wish}
+          <div class="qv-buy-row">
+            <a class="btn btn-block qv-add" href="${E(wa(`Hi ${brand()}! Please tell me if the ${p.name} (${p.colorName || ""}) comes back in stock.`))}" target="_blank" rel="noopener">Notify me</a>
+            ${wish}
+          </div>
         </div>`;
       }
       const max = Math.min(10, s.left);
       return `<div class="qv-buy">
-        <div class="qty qv-qty" role="group" aria-label="Quantity">
-          <button type="button" data-qv-qty="-1" aria-label="Decrease quantity"${st.qty <= 1 ? " disabled" : ""}>−</button>
-          <output aria-live="polite">${st.qty}</output>
-          <button type="button" data-qv-qty="1" aria-label="Increase quantity"${st.qty >= max ? " disabled" : ""}>+</button>
+        <div class="qv-buy-row">
+          <div class="qty qv-qty" role="group" aria-label="Quantity">
+            <button type="button" data-qv-qty="-1" aria-label="Decrease quantity"${st.qty <= 1 ? " disabled" : ""}>−</button>
+            <output aria-live="polite">${st.qty}</output>
+            <button type="button" data-qv-qty="1" aria-label="Increase quantity"${st.qty >= max ? " disabled" : ""}>+</button>
+          </div>
+          <button type="button" class="btn qv-add" data-qv-add>Add to cart</button>
+          ${wish}
         </div>
-        <button type="button" class="btn qv-add" data-qv-add><span>Add to bag</span><span class="qv-add-price mono">${money(p.price * st.qty)}</span></button>
-        ${wish}
       </div>`;
     }
 
     function markup(p) {
       const s = stockOf(p), d = drop(), faces = facesOf(p), vars = variants(p), pct = off(p);
-      const keys = Object.keys(faces);
-      if (!faces[st.view]) st.view = "front";
-      const canFlip = !!faces.back;
+      if (!faces.some(f => f.key === st.view)) st.view = faces[0].key;
+      const cur = faces.findIndex(f => f.key === st.view);
       const out = s.soldOut;
-      const specs = [
-        ["Fabric", p.fabric],
-        ["Fit", p.fit],
-        ["Print", [printOf(p, "front") && printOf(p, "front") !== "logo" ? "Front graphic" : printOf(p, "front") === "logo" ? "Chest mark" : "",
-                   printOf(p, "back") ? "back print" : ""].filter(Boolean).join(" + ").replace(/^b/, "B")],
-        ["Returns", "7-day size exchange"]
-      ].filter(r => r[1]);
+      const tline = techs(p).length ? techs(p).join(" · ") : tech(p);
+      const status = !d.live ? `Drop ${E(dropNo())} — coming soon` : out ? "Sold out" : s.low ? `Only ${s.left} left` : "";
 
       return `
       <div class="qv-inner">
         <div class="qv-media">
-          <div class="qv-stage" data-view="${st.view}" role="group" aria-label="${E(p.name)} artwork">
-            <div class="qv-badges">${badgeOf(p, s)}</div>
-            <span class="qv-stage-meta mono" aria-hidden="true">${pad(keys.indexOf(st.view) + 1)} / ${pad(keys.length)} · ${VIEWS[st.view]}</span>
-            <div class="qv-flip">
-              <figure class="qv-face qv-face-front" aria-hidden="${st.view !== "front"}">${faces.front}</figure>
-              ${canFlip ? `<figure class="qv-face qv-face-back" aria-hidden="${st.view !== "back"}">${faces.back}</figure>` : ""}
-            </div>
-            ${faces.detail ? `<figure class="qv-detail" aria-hidden="${st.view !== "detail"}">${faces.detail}</figure>` : ""}
-            ${canFlip ? `<div class="qv-toggle" role="group" aria-label="Garment side">
-              <button type="button" data-qv-view="front" aria-pressed="${st.view === "front"}">Front</button>
-              <button type="button" data-qv-view="back" aria-pressed="${st.view === "back"}">Back</button>
-              <span class="qv-toggle-ind" aria-hidden="true"></span>
-            </div>` : ""}
-          </div>
-          ${keys.length > 1 ? `<div class="qv-thumbs" role="group" aria-label="Choose view">
-            ${keys.map((k, i) => `<button type="button" class="qv-thumb" data-qv-view="${k}" aria-pressed="${st.view === k}" aria-label="${VIEWS[k]} view">
-              <span class="qv-thumb-art">${faces[k]}</span><span class="qv-thumb-label mono">${pad(i + 1)} ${VIEWS[k]}</span></button>`).join("")}
+          ${faces.length > 1 ? `<div class="qv-thumbs" role="group" aria-label="Choose view">
+            ${faces.map(f => `<button type="button" class="qv-thumb" data-qv-view="${f.key}" aria-pressed="${f.key === st.view}" aria-label="${E(f.label)} view">${f.html}</button>`).join("")}
           </div>` : ""}
+          <div class="qv-stage" role="group" aria-roledescription="gallery" aria-label="${E(p.name)} images">
+            ${faces.map(f => `<figure class="qv-face${f.key === st.view ? " is-on" : ""}" data-face="${f.key}" aria-hidden="${f.key !== st.view}">${f.html}</figure>`).join("")}
+          </div>
+          ${faces.length > 1 ? `<div class="qv-dots" aria-hidden="true">${faces.map(f => `<i class="${f.key === st.view ? "is-on" : ""}" data-dot="${f.key}"></i>`).join("")}</div>` : ""}
+          <span class="visually-hidden qv-live" aria-live="polite">${E(faces[cur].label)} view</span>
         </div>
 
         <div class="qv-info">
-          <p class="qv-eyebrow mono">Drop ${E(dropNo())} · No. ${serial(p)}<span> · ${E(category(p.category))}</span></p>
           <h2 class="qv-title" id="qv-title">${E(p.name)}</h2>
-          <div class="qv-price-row">
-            <span class="qv-price mono">${money(p.price)}</span>
-            ${pct > 0 ? `<s class="qv-mrp mono" aria-label="MRP ${money(p.mrp)}">${money(p.mrp)}</s><span class="qv-off mono">−${pct}%</span>` : ""}
-            <span class="qv-tax mono">Incl. taxes</span>
-          </div>
-          ${stockMeter(s)}
+          <p class="qv-price">
+            <span class="qv-now">${money(p.price)}</span>
+            ${pct > 0 ? `<s class="qv-mrp"><span class="visually-hidden">Was </span>${money(p.mrp)}</s>` : ""}
+          </p>
+          <p class="qv-tax">Tax included. Shipping calculated at checkout.</p>
+          ${tline ? `<p class="qv-tech">${E(tline)}</p>` : ""}
 
           <div class="qv-block">
-            <div class="qv-label"><span>Colour</span><b>${E(p.colorName || "")}</b></div>
+            <p class="qv-label">Colour <span>${E(p.colorName || "")}</span></p>
             ${vars.length > 1 ? `<div class="qv-swatches" role="radiogroup" aria-label="Colour">
               ${vars.map(v => `<button type="button" class="qv-swatch${v.id === p.id ? " active" : ""}" role="radio" aria-checked="${v.id === p.id}"
-                 data-qv-variant="${E(v.id)}" style="--sw:${E(v.color)}" aria-label="${E(v.colorName || v.name)}${v.stock <= 0 ? " (sold out)" : ""}" title="${E(v.colorName || v.name)}">
-                 <span></span></button>`).join("")}
+                 data-qv-variant="${E(v.id)}" style="--sw:${E(v.color)}" aria-label="${E(v.colorName || v.name)}${v.stock <= 0 ? " (sold out)" : ""}" title="${E(v.colorName || v.name)}"><span></span></button>`).join("")}
             </div>` : ""}
           </div>
 
           <div class="qv-block">
-            <div class="qv-label qv-label-row">
-              <span class="qv-size-label">Size${st.size ? ` <b>${E(st.size)}</b>` : ""}</span>
-              <button type="button" class="qv-fitlink" data-qv-fit>${ICON.tape}<span>Find my size</span></button>
+            <div class="qv-label-row">
+              <p class="qv-label qv-size-label">Size${st.size ? ` <span>${E(st.size)}</span>` : ""}</p>
+              <button type="button" class="qv-fitlink" data-qv-fit>Find my size</button>
             </div>
             <div class="qv-sizes" role="radiogroup" aria-label="Size">
               ${p.sizes.map(sz => out
                 ? `<button type="button" class="qv-size" disabled aria-disabled="true" title="Sold out">${E(sz)}</button>`
                 : `<button type="button" class="qv-size${st.size === sz ? " active" : ""}" role="radio" aria-checked="${st.size === sz}" data-qv-size="${E(sz)}">${E(sz)}</button>`).join("")}
             </div>
-            ${/oversize/i.test(p.fit || "") ? `<p class="qv-fitnote mono">Cut oversized — take your usual size for the boxy drape, one down for a regular fit.</p>` : ""}
+            ${/oversize/i.test(p.fit || "") ? `<p class="qv-fitnote">Oversized fit. Take your usual size for the intended drape, or one down for a regular fit.</p>` : ""}
             <p class="qv-msg" role="alert"></p>
           </div>
 
+          ${status ? `<p class="qv-status${out ? " is-out" : ""}">${status}</p>` : ""}
           ${buyRow(p, s, d)}
 
-          <dl class="qv-specs">${specs.map(([k, v]) => `<div><dt class="mono">${k}</dt><dd>${E(v)}</dd></div>`).join("")}</dl>
           ${p.desc ? `<p class="qv-desc">${E(p.desc)}</p>` : ""}
-          <a class="qv-more" href="product.html?id=${encodeURIComponent(p.id)}"><span>Full details</span>${ICON.arrow}</a>
+          <a class="qv-more link-underline" href="product.html?id=${encodeURIComponent(p.id)}">View full details</a>
         </div>
       </div>`;
     }
@@ -265,22 +217,18 @@
       tick(root);
     }
 
+    const keys = () => [...root.querySelectorAll(".qv-face")].map(f => f.dataset.face);
     function setView(v) {
-      const stage = root.querySelector(".qv-stage");
-      if (!stage) return;
-      const keys = [...root.querySelectorAll(".qv-thumb")].map(b => b.dataset.qvView);
-      const list = keys.length ? keys : ["front"].concat(root.querySelector(".qv-face-back") ? ["back"] : []);
-      if (!list.includes(v)) return;
+      if (!keys().includes(v)) return;
       st.view = v;
-      stage.dataset.view = v;
+      root.querySelectorAll(".qv-face").forEach(f => { const on = f.dataset.face === v; f.classList.toggle("is-on", on); f.setAttribute("aria-hidden", !on); });
       root.querySelectorAll("[data-qv-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.qvView === v));
-      const map = { front: ".qv-face-front", back: ".qv-face-back", detail: ".qv-detail" };
-      Object.entries(map).forEach(([k, sel]) => { const el = root.querySelector(sel); if (el) el.setAttribute("aria-hidden", k !== v); });
-      const meta = root.querySelector(".qv-stage-meta");
-      if (meta) meta.textContent = `${pad(list.indexOf(v) + 1)} / ${pad(list.length)} · ${VIEWS[v]}`;
+      root.querySelectorAll("[data-dot]").forEach(i => i.classList.toggle("is-on", i.dataset.dot === v));
+      const live = root.querySelector(".qv-live"), th = root.querySelector(`[data-qv-view="${v}"]`);
+      if (live && th) live.textContent = th.getAttribute("aria-label");
     }
     function stepView(dir) {
-      const list = [...root.querySelectorAll(".qv-thumb")].map(b => b.dataset.qvView);
+      const list = keys();
       if (list.length < 2) return;
       setView(list[(list.indexOf(st.view) + dir + list.length) % list.length]);
     }
@@ -294,7 +242,7 @@
       if (next.stock > 0) st.qty = clamp(st.qty, 1, Math.min(10, next.stock));
       if (reduced()) { paint(); return; }
       root.classList.add("is-swapping");
-      setTimeout(() => { paint(); requestAnimationFrame(() => root.classList.remove("is-swapping")); }, 180);
+      setTimeout(() => { paint(); requestAnimationFrame(() => root.classList.remove("is-swapping")); }, 160);
     }
 
     function pickSize(size) {
@@ -305,7 +253,7 @@
         b.setAttribute("aria-checked", on);
       });
       const lbl = root.querySelector(".qv-size-label");
-      if (lbl) lbl.innerHTML = `Size <b>${E(size)}</b>`;
+      if (lbl) lbl.innerHTML = `Size <span>${E(size)}</span>`;
       const msg = root.querySelector(".qv-msg");
       if (msg) { msg.textContent = ""; msg.classList.remove("show"); }
     }
@@ -318,8 +266,6 @@
       box.querySelector("output").textContent = st.qty;
       box.querySelector('[data-qv-qty="-1"]').disabled = st.qty <= 1;
       box.querySelector('[data-qv-qty="1"]').disabled = st.qty >= max;
-      const pr = root.querySelector(".qv-add-price");
-      if (pr) pr.textContent = money(p.price * st.qty);
     }
 
     function add(btn) {
@@ -327,38 +273,31 @@
       if (!st.size) {
         const sizes = root.querySelector(".qv-sizes");
         const msg = root.querySelector(".qv-msg");
-        msg.textContent = "Pick a size first.";
+        msg.textContent = "Please select a size.";
         msg.classList.add("show");
-        sizes.classList.remove("shake");
-        void sizes.offsetWidth;          // restart animation
-        sizes.classList.add("shake");
         const first = sizes.querySelector("[data-qv-size]");
         if (first) first.focus({ preventScroll: true });
-        if (mobile()) sizes.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+        sizes.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
         return;
       }
       const cart = cartStore();
-      if (!cart || !buyable(p)) { say("This tee can't be added right now.", "error"); return; }
+      if (!cart || !buyable(p)) { say("This piece can't be added right now.", "error"); return; }
       const ok = cart.add(p.id, st.size, st.qty);
-      if (ok === false) { say("Couldn't add that — it may have just sold out.", "error"); return; }
-      const src = root.querySelector(st.view === "detail" ? ".qv-detail" : st.view === "back" ? ".qv-face-back" : ".qv-face-front") || btn;
+      if (ok === false) return;               // Cart.add already explained why (toast)
+      const src = root.querySelector(".qv-face.is-on") || btn;
       try { call("flyToCart", src); } catch (e) { /* non-fatal */ }
-      say(`Added — ${p.name} · ${st.size}`, "success");
 
       const buy = root.querySelector(".qv-buy");
       const sub = cart.subtotal ? cart.subtotal() : 0;
-      const left = (STORE.freeShippingAbove || 0) - sub;
+      const left = ((typeof STORE !== "undefined" && STORE.freeShippingAbove) || 0) - sub;
       buy.outerHTML = `
         <div class="qv-added" role="status">
-          <span class="qv-added-ico">${ICON.check}</span>
-          <div class="qv-added-text">
-            <strong>In your bag</strong>
-            <span class="mono">Size ${E(st.size)} · Qty ${pad(st.qty)} · ${money(p.price * st.qty)}</span>
-            <small class="mono">${left > 0 ? `${money(left)} more for free shipping` : "Free shipping unlocked"}</small>
-          </div>
+          <p class="qv-added-title">${ICON.check}<span>Added to cart</span></p>
+          <p class="qv-added-meta">Size ${E(st.size)} · Qty ${st.qty} · ${money(p.price * st.qty)}</p>
+          <p class="qv-added-ship">${left > 0 ? `${money(left)} away from free shipping` : "Your order ships free"}</p>
           <div class="qv-added-actions">
-            <button type="button" class="btn btn-block" data-qv-viewbag>View bag</button>
-            <button type="button" class="btn btn-ghost btn-block" data-qv-close>Keep shopping</button>
+            <button type="button" class="btn btn-block" data-qv-viewbag>View cart</button>
+            <button type="button" class="btn btn-outline btn-block" data-qv-close>Continue shopping</button>
           </div>
         </div>`;
       const vb = root.querySelector("[data-qv-viewbag]");
@@ -412,8 +351,8 @@
 
     function open(id, opts = {}) {
       const p = find(id);
-      if (!p) { say("That tee isn't available any more.", "error"); return null; }
-      if (!hasModal()) { location.href = `product.html?id=${encodeURIComponent(id)}`; return null; }
+      if (!p) { say("That piece isn't available any more.", "error"); return null; }
+      if (!hasModal()) { location.href = `product.html?id=${encodeURIComponent(p.id)}`; return null; }
       st = { id: p.id, view: opts.view || "front", size: opts.size && p.sizes.includes(opts.size) ? opts.size : null, qty: opts.qty || 1 };
       const host = modal().open(`<div class="qv" aria-labelledby="qv-title"></div>`, { size: mobile() ? "sheet" : "l", label: p.name });
       root = hostOf(host, ".qv");
@@ -449,17 +388,17 @@
     const TOPS = ["S", "M", "L", "XL", "XXL"];
     const COLLAR = { S: "38", M: "40", L: "42", XL: "44", XXL: "46" };
     const FITS_OS = [
-      { id: "oversized", name: "Oversized", sub: "as intended", note: "Boxy, dropped shoulders — how it's cut" },
-      { id: "relaxed", name: "Slightly relaxed", sub: "a bit less drape", note: "Roomy, but less volume" },
-      { id: "regular", name: "Regular", sub: "size down", note: "Closer to a normal tee" }
+      { id: "oversized", name: "Oversized", sub: "As designed", note: "Boxy body, dropped shoulders" },
+      { id: "relaxed", name: "Relaxed", sub: "A little less room", note: "Easy, with less drape" },
+      { id: "regular", name: "Regular", sub: "Size down", note: "Closer to a classic tee" }
     ];
     const FITS_CLASSIC = [
-      { id: "slim", name: "Slim", sub: "close", note: "Close to the body, sharp lines" },
-      { id: "regular", name: "Regular", sub: "easy", note: "Easy through chest and waist" },
-      { id: "relaxed", name: "Relaxed", sub: "roomy", note: "Roomy, laid-back drape" }
+      { id: "slim", name: "Slim", sub: "Close", note: "Close to the body" },
+      { id: "regular", name: "Regular", sub: "Easy", note: "Easy through chest and waist" },
+      { id: "relaxed", name: "Relaxed", sub: "Roomy", note: "A laid-back drape" }
     ];
-    const FIT_NAME = { oversized: "Oversized", relaxed: "Slightly relaxed", regular: "Regular", slim: "Slim" };
-    let st = null, root = null, opts = {};
+    const FIT_NAME = { oversized: "Oversized", relaxed: "Relaxed", regular: "Regular", slim: "Slim" };
+    let st = null, root = null, opts = {}, kbd = false;
 
     const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; } };
     const save = v => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { /* private mode */ } };
@@ -525,7 +464,7 @@
       return { sys, want, size: best, exact: false };
     }
 
-    /* ---------- illustrations ---------- */
+    /* ---------- line drawing: a flat tee silhouette per fit (1px outline, no fill) ---------- */
     const TEE = {               // shoulder half-width, shoulder drop, sleeve out/down, hem half-width, hem y
       slim: [15, 1, 8, 20, 15, 128], regular: [17, 2, 9, 24, 17, 132],
       relaxed: [21, 6, 10, 28, 21, 140], oversized: [27, 13, 9, 30, 27, 152]
@@ -535,47 +474,19 @@
       const r = (a, b) => `${(c + a).toFixed(1)} ${b.toFixed(1)}`, l = (a, b) => `${(c - a).toFixed(1)} ${b.toFixed(1)}`;
       return `M${l(8, 57)} Q${c} 66 ${r(8, 57)} L${r(S, y)} L${r(S + sx, y + sy)} L${r(S + sx - 11, y + sy + 4)} L${r(H, y + 22)} L${r(H, L)} L${l(H, L)} L${l(H, y + 22)} L${l(S + sx - 11, y + sy + 4)} L${l(S + sx, y + sy)} L${l(S, y)} Z`;
     }
-    function body() {
-      return `<circle cx="70" cy="38" r="13"/><rect x="65" y="48" width="10" height="11"/>
-        <path d="M52 60h36l8 4 9 26-1 58-7 3-4-56-2 0v44H55v-44l-2 0-4 56-7-3-1-58 9-26z"/>
-        <path d="M54 126h32l-2 102h-11l-3-80-3 80H56z"/>`;
-    }
-    function figure(h, w, fit) {
-      const sy = 0.8 + (h - 150) / 50 * 0.2;             // 150cm → .80, 200cm → 1.00
-      const bmi = w / Math.pow(h / 100, 2);
-      const sx = clamp(0.8 + (bmi - 18) / 14 * 0.45, 0.74, 1.36);
-      const topY = 236 - 211 * sy;                        // head-top y after scaling
-      const ticks = Array.from({ length: 12 }, (_, i) => 236 - i * 20)
-        .map((y, i) => `<line x1="${i % 2 ? 7 : 2}" y1="${y}" x2="12" y2="${y}"/>`).join("");
-      return `<svg class="ff-figure" viewBox="0 0 140 240" aria-hidden="true">
-        <g class="ff-ruler">${ticks}<line x1="12" y1="16" x2="12" y2="236"/></g>
-        <g class="ff-mark" style="transform: translateY(${topY.toFixed(1)}px)">
-          <line x1="12" y1="0" x2="128" y2="0"/><rect x="8" y="-4" width="8" height="8"/>
-        </g>
-        <line class="ff-ground" x1="12" y1="236" x2="132" y2="236"/>
-        <g class="ff-figure-body" style="transform: scale(${sx.toFixed(3)}, ${sy.toFixed(3)})">
-          <g class="ff-skin">${body()}</g>
-          <path class="ff-tee-shape" d="${teePath(fit)}"/>
-        </g>
-      </svg>`;
-    }
-    function fitArt(fit) {
-      return `<svg class="ff-fit-art" viewBox="22 18 96 150" aria-hidden="true">
-        <g class="ff-skin">${body()}</g><path class="ff-tee-shape" d="${teePath(fit)}"/></svg>`;
-    }
+    const fitArt = fit => `<svg class="ff-fit-art" viewBox="22 50 96 108" aria-hidden="true"><path d="${teePath(fit)}"/></svg>`;
 
     /* ---------- screens ---------- */
     function head() {
       const n = typeof st.step === "number" ? st.step : 3;
-      const label = st.step === "result" ? "Result" : st.step === "saved" ? "Welcome back" : `${pad(n + 1)} / 03`;
+      const label = st.step === "result" ? "Result" : st.step === "saved" ? "" : `Step ${n + 1} of 3`;
+      const pct = st.step === "result" ? 100 : st.step === "saved" ? 0 : ((n + 1) / 3) * 100;
       return `<header class="ff-head">
         <div class="ff-toprow">
-          <p class="ff-brand mono">[ Fit Finder ]</p>
-          ${opts.onCancel ? `<button type="button" class="ff-backlink mono" data-ff-cancel>${ICON.chevL}<span>Back to tee</span></button>` : ""}
+          ${opts.onCancel ? `<button type="button" class="ff-backlink" data-ff-cancel>${ICON.back}<span>Back to product</span></button>` : `<p class="ff-brand">Find your size</p>`}
+          ${label ? `<p class="ff-count">${label}</p>` : ""}
         </div>
-        ${st.step === "saved" ? "" : `<div class="ff-progress" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${Math.min(3, n + 1)}" aria-label="Quiz progress">
-          ${[0, 1, 2].map(i => `<span class="${i < n || st.step === "result" ? "done" : i === n ? "on" : ""}"></span>`).join("")}
-          <b class="mono">${label}</b></div>`}
+        ${st.step === "saved" ? "" : `<div class="ff-progress" role="progressbar" aria-valuemin="0" aria-valuemax="3" aria-valuenow="${Math.min(3, n + 1)}" aria-label="Quiz progress"><i style="width:${pct}%"></i></div>`}
       </header>`;
     }
 
@@ -583,22 +494,20 @@
       const pct = ((val - min) / (max - min)) * 100;
       return `<div class="ff-range">
         <input type="range" min="${min}" max="${max}" step="1" value="${val}" data-ff-range="${name}" aria-label="${label}" style="--p:${pct}%">
-        <div class="ff-ticks mono" aria-hidden="true">${ticks.map(t => `<span>${t}</span>`).join("")}</div>
+        <div class="ff-ticks" aria-hidden="true">${ticks.map(t => `<span>${t}</span>`).join("")}</div>
       </div>`;
     }
 
     function measure(kind) {
       const isH = kind === "height";
       const v = isH ? st.height : st.weight;
-      return `<div class="ff-measure">
-          <div class="ff-fig-wrap">${figure(st.height, st.weight, st.fit)}</div>
-          <div class="ff-readout">
-            <output class="ff-big mono" data-ff-out>${v}</output>
-            <span class="ff-unit mono">${isH ? "cm" : "kg"} <i data-ff-alt>${isH ? ftin(v) : Math.round(v * 2.2046) + " lb"}</i></span>
-          </div>
+      return `<div class="ff-readout">
+          <output class="ff-big" data-ff-out>${v}</output>
+          <span class="ff-unit">${isH ? "cm" : "kg"}</span>
         </div>
-        ${isH ? range("height", 150, 200, st.height, "Height in centimetres", ["150", "175", "200"])
-              : range("weight", 45, 120, st.weight, "Weight in kilograms", ["45", "80", "120"])}`;
+        <p class="ff-alt" data-ff-alt>${isH ? ftin(v) : Math.round(v * 2.2046) + " lb"}</p>
+        ${isH ? range("height", 150, 200, st.height, "Height in centimetres", ["150 cm", "175", "200 cm"])
+              : range("weight", 45, 120, st.weight, "Weight in kilograms", ["45 kg", "80", "120 kg"])}`;
     }
 
     function screen() {
@@ -608,39 +517,38 @@
         const p = product();
         const fp = p && forProduct(p, r);
         return `<section class="ff-step ff-saved">
-          <h2 class="ff-title">Welcome<br><span class="ff-acid">back.</span></h2>
-          <p class="ff-sub">Your answers from last time are still here.</p>
-          <div class="ff-saved-card">
-            <div><span class="mono">Height</span><b class="mono">${st.saved.height}<small>cm</small></b></div>
-            <div><span class="mono">Weight</span><b class="mono">${st.saved.weight}<small>kg</small></b></div>
-            <div><span class="mono">Fit</span><b>${E(FIT_NAME[normFit(st.saved.fit, os)])}</b></div>
-            <div class="ff-saved-size"><span class="mono">Your size</span><b class="mono">${E(fp ? fp.size : r.top)}</b></div>
-          </div>
+          <h2 class="ff-title">Welcome back</h2>
+          <p class="ff-sub">We kept your answers from last time on this device.</p>
+          <dl class="ff-saved-card">
+            <div><dt>Height</dt><dd>${st.saved.height} cm</dd></div>
+            <div><dt>Weight</dt><dd>${st.saved.weight} kg</dd></div>
+            <div><dt>Fit</dt><dd>${E(FIT_NAME[normFit(st.saved.fit, os)])}</dd></div>
+            <div class="ff-saved-size"><dt>Your size</dt><dd>${E(fp ? fp.size : r.top)}</dd></div>
+          </dl>
           <div class="ff-actions">
-            <button type="button" class="btn btn-block btn-lg" data-ff-use>Use my size</button>
-            <button type="button" class="btn btn-ghost btn-block" data-ff-restart>Retake the quiz</button>
+            <button type="button" class="btn btn-block" data-ff-use>Use my size</button>
+            <button type="button" class="ff-textbtn" data-ff-restart>Retake the quiz</button>
           </div>
         </section>`;
       }
       if (s === 0) return `<section class="ff-step">
-          <h2 class="ff-title">How <span class="ff-acid">tall</span>?</h2>
-          <p class="ff-sub">Drag it. Barefoot height works best.</p>
+          <h2 class="ff-title">How tall are you?</h2>
+          <p class="ff-sub">Barefoot height works best.</p>
           ${measure("height")}
         </section>`;
       if (s === 1) return `<section class="ff-step">
-          <h2 class="ff-title">And your <span class="ff-acid">weight</span>?</h2>
-          <p class="ff-sub">Roughly is fine — it never leaves your phone.</p>
+          <h2 class="ff-title">And your weight?</h2>
+          <p class="ff-sub">A rough number is fine. It stays on your phone.</p>
           ${measure("weight")}
         </section>`;
       if (s === 2) return `<section class="ff-step">
-          <h2 class="ff-title">How should it <span class="ff-acid">sit</span>?</h2>
-          <p class="ff-sub">${os ? "These tees are cut oversized. Pick the drape you want." : "Pick the silhouette you reach for most."}</p>
+          <h2 class="ff-title">How do you like it to fit?</h2>
+          <p class="ff-sub">${os ? "Our tees are cut oversized. Choose how much room you want." : "Choose the fit you reach for most."}</p>
           <div class="ff-fits" role="radiogroup" aria-label="Fit preference">
-            ${fitsFor(os).map((f, i) => `<button type="button" class="ff-fit${st.fit === f.id ? " active" : ""}" role="radio" aria-checked="${st.fit === f.id}" data-ff-fitpick="${f.id}">
-              <span class="ff-fit-no mono">${pad(i + 1)}</span>
+            ${fitsFor(os).map(f => `<button type="button" class="ff-fit${st.fit === f.id ? " active" : ""}" role="radio" aria-checked="${st.fit === f.id}" data-ff-fitpick="${f.id}">
               ${fitArt(f.id)}
-              <b>${E(f.name)}</b><small class="mono">${E(f.sub)}</small><span class="ff-fit-note">${E(f.note)}</span>
-              <span class="ff-tick" aria-hidden="true">${ICON.check}</span></button>`).join("")}
+              <span class="ff-fit-text"><b>${E(f.name)}<span> — ${E(f.sub)}</span></b><small>${E(f.note)}</small></span>
+              <span class="ff-radio" aria-hidden="true"></span></button>`).join("")}
           </div>
         </section>`;
       return resultScreen();
@@ -657,52 +565,54 @@
 
       let note, alt = null, altLabel = "";
       if (!isTop) {
-        note = `Based on your build, <b>${E(size)}</b> is the one${fp && !fp.exact ? ` (closest we make to ${E(fp.want)})` : ""}.`;
+        note = `Based on your build, <b>${E(size)}</b> is the one${fp && !fp.exact ? ` (the closest we make to ${E(fp.want)})` : ""}.`;
       } else if (os) {
         if (st.fit === "oversized") {
-          note = `<b>${E(size)}</b> gives you the boxy, dropped-shoulder drape this tee is cut for.`;
-          if (r.down && r.down !== size && offered(r.down)) { alt = r.down; altLabel = "Regular fit"; note += ` For a regular fit, size down to <b>${E(r.down)}</b>.`; }
-          else if (r.floored || !r.down) note += ` It's our smallest — expect a roomy fit either way.`;
+          note = `<b>${E(size)}</b> gives you the boxy, dropped-shoulder fit the tee is designed for.`;
+          if (r.down && r.down !== size && offered(r.down)) { alt = r.down; altLabel = "Regular"; note += ` For a regular fit, size down to <b>${E(r.down)}</b>.`; }
+          else if (r.floored || !r.down) note += ` It's our smallest size, so expect a roomy fit either way.`;
         } else if (st.fit === "relaxed") {
-          note = `<b>${E(size)}</b> keeps it loose without swallowing you.`;
-          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Full oversized"; note += ` Want the full oversized drape? Go <b>${E(r.intended)}</b>.`; }
-          else if (r.down && offered(r.down)) { alt = r.down; altLabel = "Regular fit"; note += ` For a regular fit, size down to <b>${E(r.down)}</b>.`; }
+          note = `<b>${E(size)}</b> keeps it easy without too much volume.`;
+          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Oversized"; note += ` For the full oversized drape, take <b>${E(r.intended)}</b>.`; }
+          else if (r.down && offered(r.down)) { alt = r.down; altLabel = "Regular"; note += ` For a regular fit, size down to <b>${E(r.down)}</b>.`; }
         } else {
           note = r.floored
-            ? `<b>${E(size)}</b> is our smallest — on you it will still sit a little relaxed.`
-            : `One down from your usual — <b>${E(size)}</b> sits like a regular tee on you.`;
-          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Oversized"; note += ` For the full oversized drape, go <b>${E(r.intended)}</b>.`; }
+            ? `<b>${E(size)}</b> is our smallest size. On you it will still sit a little relaxed.`
+            : `One size down from your usual. <b>${E(size)}</b> sits like a regular tee.`;
+          if (r.intended !== size && offered(r.intended)) { alt = r.intended; altLabel = "Oversized"; note += ` For the full oversized drape, take <b>${E(r.intended)}</b>.`; }
         }
-        if (r.between && st.fit === "oversized" && !alt && offered(r.between)) { alt = r.between; altLabel = "Broad shoulders"; }
-        if (r.between && st.fit === "oversized") note += ` You're near the top of the band — broad shoulders can go <b>${E(r.between)}</b>.`;
+        if (r.between && st.fit === "oversized" && !alt && offered(r.between)) { alt = r.between; altLabel = "Broad build"; }
+        if (r.between && st.fit === "oversized") note += ` You're near the top of the range, so broad shoulders may prefer <b>${E(r.between)}</b>.`;
       } else {
         note = `Most builds like yours (${st.height} cm, ${st.weight} kg) wear <b>${E(size)}</b> for a ${E(FIT_NAME[st.fit].toLowerCase())} fit.`;
       }
       if (fp && !fp.exact && isTop) note += ` <b>${E(fp.want)}</b> isn't made in this style, so <b>${E(size)}</b> is the closest.`;
 
-      /* secondary systems only when the store actually sells them */
+      /* secondary systems only when the store actually sells them (tops only otherwise) */
       const extra = [];
-      if (bottoms()) extra.push({ k: "Waist · jeans & joggers", v: r.waist });
-      if (PRODUCTS.some(x => systemOf(x) === "collar")) extra.push({ k: "Shirts · collar", v: r.collar });
+      if (bottoms()) extra.push({ k: "Waist (jeans, joggers)", v: r.waist });
+      if (PRODUCTS.some(x => systemOf(x) === "collar")) extra.push({ k: "Shirt collar", v: r.collar });
       const soldOut = p && p.stock <= 0;
 
       return `<section class="ff-step ff-result">
-        ${p ? `<div class="ff-prod"><span class="ff-prod-art">${pic(p, 0, "front")}</span><div><small class="mono">Sized for · No. ${serial(p)}</small><b>${E(p.name)}</b><small class="mono">${E(p.fit || "")}${p.fit ? " cut" : ""}</small></div></div>` : ""}
-        <div class="ff-answer">
-          <p class="ff-answer-label mono">Your size${os && isTop ? " · oversized cut" : ""}</p>
-          <p class="ff-size-word" data-len="${String(size).length}" aria-live="polite">${E(size)}</p>
+        <div class="ff-card">
+          ${p ? `<div class="ff-prod"><span class="ff-prod-art">${pic(p, 0, "front")}</span><div><b>${E(p.name)}</b><small>${E(p.colorName || "")}${p.fit ? ` · ${E(p.fit)} fit` : ""}</small></div></div>` : ""}
+          <div class="ff-answer">
+            <p class="ff-answer-label">Recommended size</p>
+            <p class="ff-size-word" aria-live="polite">${E(size)}</p>
+          </div>
+          ${isTop ? `<div class="ff-scale" aria-hidden="true">${sizes.map(x => `<span class="${x === size ? "is-pick" : x === alt ? "is-alt" : ""}"><b>${E(x)}</b>${x === alt ? `<i>${E(altLabel)}</i>` : ""}</span>`).join("")}</div>` : ""}
+          <p class="ff-note">${note}</p>
+          ${extra.length ? `<dl class="ff-tiles">${extra.map(t => `<div><dt>${t.k}</dt><dd>${E(t.v)}</dd></div>`).join("")}</dl>` : ""}
         </div>
-        ${isTop ? `<div class="ff-scale" aria-hidden="true">${sizes.map(x => `<span class="${x === size ? "is-pick" : x === alt ? "is-alt" : ""}">${E(x)}${x === alt ? `<i class="mono">${E(altLabel)}</i>` : ""}</span>`).join("")}</div>` : ""}
-        <div class="ff-note"><p>${note}</p></div>
-        ${extra.length ? `<div class="ff-tiles">${extra.map(t => `<div class="ff-tile"><span class="ff-tile-val mono">${E(t.v)}</span><span class="ff-tile-label mono">${t.k}</span></div>`).join("")}</div>` : ""}
-        <p class="ff-basis mono">${st.height} cm (${ftin(st.height)}) · ${st.weight} kg · ${E(FIT_NAME[st.fit])}
-          <button type="button" class="ff-edit mono" data-ff-goto="0">Edit</button></p>
+        <p class="ff-basis">${st.height} cm (${ftin(st.height)}) · ${st.weight} kg · ${E(FIT_NAME[st.fit])}
+          <button type="button" class="ff-edit" data-ff-goto="0">Edit</button></p>
         <div class="ff-actions">
           ${p ? (soldOut
-            ? `<button type="button" class="btn btn-block btn-lg" disabled>Sold out</button>`
-            : `<button type="button" class="btn btn-block btn-lg" data-ff-pick="${E(size)}">Select size ${E(size)}</button>`)
-            : `<a class="btn btn-block btn-lg" href="shop.html">Shop Drop ${E(dropNo())} in ${E(size)}</a>`}
-          <button type="button" class="btn btn-ghost btn-block" data-ff-restart>Start over</button>
+            ? `<button type="button" class="btn btn-block" disabled>Sold out</button>`
+            : `<button type="button" class="btn btn-block" data-ff-pick="${E(size)}">Select size ${E(size)}</button>`)
+            : `<a class="btn btn-block" href="shop.html">Shop size ${E(size)}</a>`}
+          <button type="button" class="ff-textbtn" data-ff-restart>Start over</button>
         </div>
       </section>`;
     }
@@ -710,8 +620,8 @@
     function nav() {
       if (st.step === "saved" || st.step === "result") return "";
       return `<footer class="ff-nav">
-        <button type="button" class="btn btn-ghost" data-ff-back ${st.step === 0 ? "disabled" : ""}>Back</button>
-        <button type="button" class="btn" data-ff-next>${st.step === 2 ? "See my size" : "Next"}${ICON.arrow}</button>
+        <button type="button" class="btn btn-outline" data-ff-back ${st.step === 0 ? "disabled" : ""}>Back</button>
+        <button type="button" class="btn" data-ff-next>${st.step === 2 ? "See my size" : "Next"}</button>
       </footer>`;
     }
 
@@ -719,15 +629,18 @@
       root.innerHTML = head() + `<div class="ff-stage">${screen()}</div>` + nav();
       root.dataset.step = st.step;
       const step = root.querySelector(".ff-step");
-      if (dir && !reduced()) step.classList.add(dir > 0 ? "ff-in-fwd" : "ff-in-back");
+      if (dir && !reduced()) step.classList.add("ff-in");
       if (st.step === "result") {
         const r = recommend(st, st.os);
         save({ height: st.height, weight: st.weight, fit: st.fit, top: r.top, collar: r.collar, waist: r.waist, ts: Date.now() });
-        const w = root.querySelector(".ff-size-word");
-        if (w && !reduced()) w.classList.add("pop");
       }
-      const focusEl = root.querySelector("[data-ff-range], .ff-fit.active, .ff-fit, [data-ff-pick], [data-ff-use]");
-      if (focusEl && dir) focusEl.focus({ preventScroll: true });
+      // keep focus inside the dialog: move it to the new control for keyboard users, else to the quiz itself
+      if (dir) {
+        const focusEl = kbd && root.querySelector("[data-ff-range], .ff-fit.active, .ff-fit, [data-ff-pick], [data-ff-use]");
+        (focusEl || root).focus({ preventScroll: true });
+        const sc = root.closest(".modal-content");
+        if (sc) sc.scrollTop = 0;
+      }
     }
 
     function go(step, dir) { st.step = step; render(dir); }
@@ -741,16 +654,6 @@
       const out = root.querySelector("[data-ff-out]"), alt = root.querySelector("[data-ff-alt]");
       out.textContent = v;
       alt.textContent = name === "height" ? ftin(v) : `${Math.round(v * 2.2046)} lb`;
-      const fig = root.querySelector(".ff-fig-wrap");
-      if (fig) {
-        const fresh = figure(st.height, st.weight, st.fit);
-        // update transforms in place so CSS transitions animate
-        const tmp = document.createElement("div"); tmp.innerHTML = fresh;
-        const ob = fig.querySelector(".ff-figure-body"), om = fig.querySelector(".ff-mark");
-        const nb = tmp.querySelector(".ff-figure-body"), nm = tmp.querySelector(".ff-mark");
-        if (ob && nb) ob.style.transform = nb.style.transform; else fig.innerHTML = fresh;
-        if (om && nm) om.style.transform = nm.style.transform;
-      }
     }
 
     function onClick(e) {
@@ -761,11 +664,9 @@
       if (t.dataset.ffFitpick) {
         st.fit = t.dataset.ffFitpick;
         root.querySelectorAll(".ff-fit").forEach(b => { const on = b === t; b.classList.toggle("active", on); b.setAttribute("aria-checked", on); });
-        clearTimeout(st._auto);
-        st._auto = setTimeout(() => st.step === 2 && root.isConnected && go("result", 1), reduced() ? 0 : 480);
         return;
       }
-      if (t.hasAttribute("data-ff-cancel")) { clearTimeout(st._auto); return opts.onCancel && opts.onCancel(); }
+      if (t.hasAttribute("data-ff-cancel")) return opts.onCancel && opts.onCancel();
       if (t.dataset.ffGoto) return go(+t.dataset.ffGoto, -1);
       if (t.hasAttribute("data-ff-restart")) return go(0, 1);
       if (t.hasAttribute("data-ff-use")) {
@@ -801,6 +702,10 @@
       const host = modal().open(`<div class="ff" aria-label="Fit Finder"></div>`, { size: mobile() ? "sheet" : "m", label: "Find your size" });
       root = hostOf(host, ".ff");
       if (!root) return null;
+      root.tabIndex = -1;
+      kbd = false;
+      root.addEventListener("keydown", () => { kbd = true; }, true);
+      root.addEventListener("pointerdown", () => { kbd = false; }, true);
       root.addEventListener("click", onClick);
       root.addEventListener("input", onInput);
       root.addEventListener("keydown", e => {
@@ -816,7 +721,7 @@
   /* ---------- global delegated triggers ---------- */
   document.addEventListener("click", e => {
     const q = e.target.closest("[data-quick]");
-    if (q) { e.preventDefault(); QuickView.open(q.dataset.quick); return; }
+    if (q) { if (!q.dataset.quick) return; e.preventDefault(); QuickView.open(q.dataset.quick); return; }
     const f = e.target.closest("[data-fitfinder]");
     if (f && !f.closest(".qv")) {
       e.preventDefault();
@@ -831,13 +736,15 @@
   function wishlistPage() {
     const grid = document.getElementById("wl-grid");
     if (!grid) return;
-    const numEl = document.getElementById("wl-num");
+    const titleEl = document.getElementById("wl-title");
     const countEl = document.getElementById("wl-count");
     const emptyEl = document.getElementById("wl-empty");
     const fullEl = document.getElementById("wl-full");
+    const actionsEl = document.getElementById("wl-actions");
     const shareBtn = document.getElementById("wl-share");
     const askBtn = document.getElementById("wl-ask");
     const suggestEl = document.getElementById("wl-suggest");
+    const suggestTitle = document.getElementById("wl-suggest-title");
     const moreEl = document.getElementById("wl-more");
 
     const ids = () => {
@@ -850,52 +757,53 @@
     const refresh = () => { call("refreshReveal"); };
     const base = location.href.split(/[?#]/)[0].replace(/[^/]*$/, "");
     const uniq = list => { const seen = new Set(); return list.filter(p => { const f = p.family || p.id; if (seen.has(f)) return false; seen.add(f); return true; }); };
-    /* the drop's tees, one per family, skipping families already saved; in-stock first */
-    const dropTees = exclude => {
+    /* the drop's pieces, one per family, skipping families already saved; in-stock first */
+    const dropPieces = exclude => {
       const fams = new Set([...exclude].map(id => { const p = find(id); return p && (p.family || p.id); }));
       return uniq(PRODUCTS.filter(p => !fams.has(p.family || p.id))).sort((a, b) => (b.stock > 0) - (a.stock > 0));
     };
+    const dropTitle = () => `Drop ${E(dropNo())}${dropName() ? ` — ${E(dropName())}` : ""}`;
 
     let current = [];
 
     function setCount(n) {
-      if (numEl) {
-        const txt = `(${pad(n)})`;
-        if (numEl.textContent !== txt && numEl.textContent !== "(00)" && !reduced()) {
-          numEl.classList.remove("bump"); void numEl.offsetWidth; numEl.classList.add("bump");
-        }
-        numEl.textContent = txt;
-      }
-      countEl.textContent = n ? `${pad(n)} ${n === 1 ? "piece" : "pieces"} · stored on this device` : "Your list is empty";
-      document.title = `Saved${n ? ` (${n})` : ""} | ${STORE.name}`;
+      titleEl.textContent = n ? `Wishlist (${n})` : "Wishlist";
+      countEl.textContent = n ? `${n} ${n === 1 ? "piece" : "pieces"} saved on this device` : "";
+      countEl.hidden = !n;
+      document.title = `Wishlist${n ? ` (${n})` : ""} | ${brand()}`;
     }
 
-    const listText = list => list.map((p, i) => `${pad(i + 1)}. ${p.name} — ${money(p.price)}\n${base}product.html?id=${encodeURIComponent(p.id)}`).join("\n\n");
+    const listText = list => list.map((p, i) => `${i + 1}. ${p.name} (${p.colorName || ""}) — ${money(p.price)}\n${base}product.html?id=${encodeURIComponent(p.id)}`).join("\n\n");
     function shareLink(list) {
       // a share to any contact (no number) — so friends can see the list
-      const msg = `My ${STORE.name} wishlist — Drop ${dropNo()}\n\n${listText(list)}\n\nShop: ${base}shop.html`;
+      const msg = `My ${brand()} wishlist\n\n${listText(list)}\n\nShop: ${base}shop.html`;
       return `https://wa.me/?text=${encodeURIComponent(msg)}`;
     }
-    function askLink(list) {
-      return wa(`Hi ${STORE.name}! I'm interested in these:\n\n${listText(list)}`);
-    }
+    const askLink = list => wa(`Hi ${brand()}! I'm interested in these:\n\n${listText(list)}`);
+    const canAsk = () => typeof STORE !== "undefined" && String(STORE.whatsapp || "").replace(/\D/g, "").length >= 10;
 
     function renderMore(list) {
       const exclude = new Set(list.map(p => p.id));
-      let items = dropTees(exclude), title = `More from Drop ${E(dropNo())}`, eyebrow = `[ ${pad(items.length)} more ]`;
+      let items = dropPieces(exclude), title = `More from ${dropTitle()}`;
       if (!items.length) {
         let recent = [];
         try { const r = recentStore(); recent = r ? toList(r.list()) : []; } catch (e) { recent = []; }
         items = recent.filter(p => !exclude.has(p.id));
-        title = "Recently viewed"; eyebrow = "[ pick up where you left off ]";
+        title = "Recently viewed";
       }
       if (!items.length) { moreEl.hidden = true; moreEl.innerHTML = ""; return; }
       moreEl.hidden = false;
       moreEl.innerHTML = `<div class="container">
-          <div class="wl-more-head"><p class="eyebrow mono">${eyebrow}</p><h2 class="wl-more-title">${title}</h2>
-          <a class="wl-link mono" href="shop.html">Shop all ${ICON.arrow}</a></div>
-          <div class="grid-products wl-more-grid">${items.slice(0, 8).map(card).join("")}</div>
+          <div class="wl-sec-head"><h2 class="wl-sec-title">${title}</h2>
+          <a class="link-underline wl-sec-link" href="shop.html">View all</a></div>
+          <div class="grid-products">${items.slice(0, 8).map(card).join("")}</div>
         </div>`;
+    }
+
+    function links(list) {
+      if (!list.length) return;
+      shareBtn.href = shareLink(list);
+      if (askBtn) askBtn.href = askLink(list);
     }
 
     function render() {
@@ -905,16 +813,15 @@
       const empty = !list.length;
       emptyEl.hidden = !empty;
       fullEl.hidden = empty;
-      shareBtn.hidden = empty;
-      if (askBtn) askBtn.hidden = empty || !(STORE.whatsapp && String(STORE.whatsapp).length >= 10);
+      actionsEl.hidden = empty;
+      if (askBtn) askBtn.hidden = empty || !canAsk();
       document.body.classList.toggle("wl-is-empty", empty);
       grid.innerHTML = list.map(card).join("");
-      if (!empty) { shareBtn.href = shareLink(list); if (askBtn) askBtn.href = askLink(list); }
+      links(list);
       if (empty) {
-        const sugg = dropTees(new Set());
+        const sugg = dropPieces(new Set());
         suggestEl.innerHTML = sugg.slice(0, 8).map(card).join("");
-        const sTitle = document.getElementById("wl-suggest-title");
-        if (sTitle) sTitle.textContent = `Drop ${dropNo()} — ${pad(sugg.length)} ${sugg.every(p => p.shape === "tee") ? "tees" : "pieces"}`;
+        if (suggestTitle) suggestTitle.innerHTML = dropTitle();
         moreEl.hidden = true; moreEl.innerHTML = "";
       } else {
         suggestEl.innerHTML = "";
@@ -930,8 +837,7 @@
       if (added.length || !removed.length || reduced()) { render(); return; }
       current = now;
       setCount(now.length);
-      const list = toList(now);
-      if (list.length) { shareBtn.href = shareLink(list); if (askBtn) askBtn.href = askLink(list); }
+      links(toList(now));
       let any = false;
       removed.forEach(id => {
         const el = grid.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
@@ -939,7 +845,7 @@
         any = true;
         el.classList.add("wl-out");
       });
-      setTimeout(render, any ? 520 : 0);
+      setTimeout(render, any ? 420 : 0);
     });
 
     render();

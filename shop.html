@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Drop | BHAKSHI</title>
-  <meta name="description" content="Drop 01 from BHAKSHI: heavyweight oversized graphic tees, made in India in limited units. Cash on Delivery, free shipping above ₹999 and easy 7-day size exchange.">
-  <meta name="theme-color" content="#0a0a0a">
+  <title>All products | BHAKSHI</title>
+  <meta name="description" content="Shop BHAKSHI: heavyweight oversized graphic tees, screen printed and finished by hand in India in limited units. Cash on Delivery, free shipping above Rs. 999 and easy 7-day size exchange.">
+  <meta name="theme-color" content="#ffffff">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/features.css">
   <link rel="stylesheet" href="css/shop.css">
@@ -15,57 +15,62 @@
 </head>
 <body data-page="shop">
   <main id="main" class="shop-page">
-    <header class="drop-head">
-      <div class="container">
-        <div class="drop-head-top">
-          <nav class="crumbs drop-crumbs" aria-label="Breadcrumb"><ol id="shopCrumbs"><li><a href="index.html">Home</a></li><li aria-current="page"><span>Shop</span></li></ol></nav>
-          <p class="shop-status" id="shopStatus" aria-live="polite"></p>
-        </div>
-        <p class="drop-eyebrow" id="shopEyebrow">[ DROP 01 ]</p>
-        <h1 class="drop-title" id="shopTitle"><span class="drop-title-t">The Drop</span><sup class="drop-count" id="shopCount"></sup></h1>
-        <div class="drop-sub">
-          <p class="drop-desc" id="shopDesc"></p>
-          <dl class="drop-meta" id="shopMeta"></dl>
-        </div>
-      </div>
+    <div class="shop-cats" id="shopCats"></div>
+
+    <header class="container shop-head">
+      <p class="shop-kicker" id="shopKicker" hidden></p>
+      <h1 class="shop-title" id="shopTitle">All products</h1>
+      <p class="shop-count" id="shopCount" aria-live="polite"></p>
+      <form class="shop-search" id="shopSearch" role="search" hidden>
+        <label class="sr-only" for="shopQ">Search products</label>
+        <input id="shopQ" name="q" type="search" autocomplete="off" placeholder="Search products" enterkeyhint="search">
+        <button type="submit" aria-label="Search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+        </button>
+      </form>
     </header>
 
-    <div class="container shop-body">
-      <nav class="shop-chips" id="shopChips" aria-label="Categories"></nav>
-
-      <div class="shop-layout" id="shopLayout">
-        <aside class="shop-side" aria-label="Filters">
-          <div class="shop-side-head">
-            <h2>Filters</h2>
-            <button type="button" class="shop-clear" id="sideClear" hidden>Clear all</button>
-          </div>
-          <div class="fpanel" id="sidePanel"></div>
-        </aside>
-
-        <section class="shop-results" aria-label="Products">
-          <div class="shop-toolbar" id="shopToolbar">
-            <div class="tb-sizes" id="tbSizes" role="group" aria-label="Filter by size in stock"></div>
-            <p class="tb-count" id="toolbarCount"></p>
-            <div class="tb-right">
-              <label class="tb-sort">
-                <span>Sort</span>
-                <select id="shopSort" aria-label="Sort products"></select>
-              </label>
-              <div class="tb-views" role="group" aria-label="Layout" id="shopViews"></div>
-            </div>
-          </div>
-          <div class="shop-pills" id="shopPills" aria-label="Active filters"></div>
-          <div class="shop-grid" id="shopGrid" data-view="grid" aria-live="polite"></div>
-          <div id="shopExtra"></div>
-        </section>
+    <div class="shop-toolbar" id="shopToolbar">
+      <div class="container shop-toolbar-in">
+        <button type="button" class="tb-filter" id="filterBtn" aria-haspopup="dialog" aria-controls="filterDrawer" aria-expanded="false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 7h11M18 7h3M3 17h3M10 17h11"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+          <span>Filters</span><span class="tb-filter-n" id="filterN" hidden></span>
+        </button>
+        <p class="tb-count" id="tbCount"></p>
+        <div class="tb-right">
+          <div class="tb-views" id="shopViews" role="group" aria-label="Product layout"></div>
+          <label class="tb-sort">
+            <span class="tb-sort-l">Sort by</span>
+            <select id="shopSort"></select>
+            <svg class="tb-sort-ic" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="m2 4 4 4 4-4"/></svg>
+          </label>
+        </div>
       </div>
     </div>
 
-    <button type="button" class="shop-fab" id="shopFab" data-bottom-bar aria-haspopup="dialog" hidden>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
-      <span>Filter &amp; Sort</span><b class="shop-fab-n" id="shopFabN" hidden></b>
-    </button>
-    <div class="list-preview" id="listPreview" aria-hidden="true"></div>
+    <div class="container shop-body">
+      <div class="shop-pills" id="shopPills" aria-label="Active filters" hidden></div>
+      <div class="shop-grid" id="shopGrid" data-view="grid"></div>
+      <div class="shop-more" id="shopMore" hidden></div>
+      <div id="shopExtra"></div>
+    </div>
+
+    <div class="fdrawer" id="filterDrawer" hidden>
+      <div class="fdrawer-scrim" data-fclose></div>
+      <section class="fdrawer-panel" role="dialog" aria-modal="true" aria-labelledby="fdrawerTitle" tabindex="-1">
+        <header class="fdrawer-head">
+          <h2 id="fdrawerTitle">Filters</h2>
+          <button type="button" class="fdrawer-x" data-fclose aria-label="Close filters">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
+          </button>
+        </header>
+        <div class="fdrawer-body" id="filterBody"></div>
+        <footer class="fdrawer-foot">
+          <button type="button" class="btn btn-outline" id="filterClear">Clear</button>
+          <button type="button" class="btn" id="filterApply">View items</button>
+        </footer>
+      </section>
+    </div>
   </main>
 
   <script src="js/products.js"></script>
